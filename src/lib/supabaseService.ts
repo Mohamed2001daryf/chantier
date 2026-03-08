@@ -257,18 +257,24 @@ export const createVerticalElement = async (payload: any) => {
 };
 
 export const deleteVerticalElement = async (id: number) => {
-  await supabase.from('vertical_elements').delete().eq('id', id);
-  await supabase.from('tasks').delete().eq('element_id', id).in('element_type', ['Poteau', 'Voile', 'Voile périphérique']);
+  const { error: delError } = await supabase.from('vertical_elements').delete().eq('id', id);
+  if (delError) console.error('deleteVerticalElement error:', delError);
+  const { error: taskError } = await supabase.from('tasks').delete().eq('element_id', id);
+  if (taskError) console.error('deleteVerticalElement task cleanup error:', taskError);
 };
 
 export const updateVerticalElementStatus = async (id: number, field: string, newStatus: string) => {
-  await supabase.from('vertical_elements').update({ [field]: newStatus }).eq('id', id);
+  const { error } = await supabase.from('vertical_elements').update({ [field]: newStatus }).eq('id', id);
+  if (error) {
+    console.error('updateVerticalElementStatus error:', error);
+    return; // Don't proceed if the update failed
+  }
 
   // Sync status with task
   if (field === 'coulage_status' && newStatus === 'Terminé') {
-    await supabase.from('tasks').update({ status: 'Terminé' }).eq('element_id', id).in('element_type', ['Poteau', 'Voile', 'Voile périphérique']);
+    await supabase.from('tasks').update({ status: 'Terminé' }).eq('element_id', id);
   } else if (newStatus === 'En cours') {
-    await supabase.from('tasks').update({ status: 'En cours' }).eq('element_id', id).in('element_type', ['Poteau', 'Voile', 'Voile périphérique']);
+    await supabase.from('tasks').update({ status: 'En cours' }).eq('element_id', id);
   }
 };
 
