@@ -10,19 +10,166 @@ import {
 import { DashboardStats } from '../types';
 import { motion } from 'motion/react';
 import { cn } from '../utils';
+import { supabase } from '../lib/supabase';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/dashboard-stats')
-      .then(res => res.json())
-      .then(data => {
-        setStats(data);
-        setLoading(false);
-      });
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      // Fetch all required data in parallel from Supabase
+      const [
+        { data: tasks },
+        { data: blocks },
+        { data: teams },
+        { data: verticalElements },
+        { data: slabs }
+      ] = await Promise.all([
+        supabase.from('tasks').select('*'),
+        supabase.from('blocks').select('*'),
+        supabase.from('teams').select('*, blocks(name)'),
+        supabase.from('vertical_elements').select('id'),
+        supabase.from('slabs').select('id')
+      ]);
+
+      const allTasks = tasks || [];
+      const allBlocks = blocks || [];
+      const allTeams = teams || [];
+      const veCount = verticalElements?.length || 0;
+      const slabCount = slabs?.length || 0;
+
+      const today = new Date().toISOString().split('T')[0];
+
+      // Global progress
+      const totalTasks = allTasks.length;
+      const finishedTasks = allTasks.filter(t => t.status === 'Terminé').length;
+      const globalProgress = totalTasks > 0 ? (finishedTasks / totalTasks) * 100 : 0;
+
+      // Delayed tasks
+      const delayedTasksArr = allTasks.filter(t => t.status !== 'Terminé' && t.end_date < today);
+      const delayedTasks = delayedTasksArr.length;
+
+      // Active workers
+      const activeWorkers = allTeams.reduce((sum, t) => sum + (t.workers || 0), 0);
+
+      // Task status counts
+      const statusMap = new Map<string, number>();
+      allTasks.forEach(t => {
+        statusMap.set(t.status, (statusMap.get(t.status) || 0) + 1);
+      });
+      const taskStatusCounts = Array.from(statusMap.entries()).map(([status, count]) => ({ status, count }));
+
+      // Progress by block
+      const progressByBlock = allBlocks.map(b => {
+        const blockTasks = allTasks.filter(t => t.block_id === b.id);
+        const done = blockTasks.filter(t => t.status === 'Terminé').length;
+        const total = blockTasks.length;
+        return { name: b.name, progress: total > 0 ? (done / total) * 100 : 0 };
+      });
+
+      // Progress by zone
+      const zoneMap = new Map<string, { done: number; total: number }>();
+      allBlocks.forEach(b => {
+        const blockTasks = allTasks.filter(t => t.block_id === b.id);
+        const prev = zoneMap.get(b.zone) || { done: 0, total: 0 };
+        prev.total += blockTasks.length;
+        prev.done += blockTasks.filter(t => t.status === 'Terminé').length;
+        zoneMap.set(b.zone, prev);
+      });
+      const progressByZone = Array.from(zoneMap.entries()).map(([name, v]) => ({
+        name,
+        progress: v.total > 0 ? (v.done / v.total) * 100 : 0
+      }));
+
+      // Weekly progress (tasks finished in the last 7 days, grouped by block)
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const sevenDaysAgoStr = sevenDaysAgo.toISOString().split('T')[0];
+      const weeklyProgress = allBlocks.map(b => {
+        const completed = allTasks.filter(
+          t => t.block_id === b.id && t.status === 'Terminé' && t.end_date >= sevenDaysAgoStr
+        ).length;
+        return { name: b.name, completed };
+      });
+
+      // Workforce distribution (workers per block)
+      const workforceDistribution = allBlocks.map(b => {
+        const blockTeams = allTeams.filter(t => t.block_id === b.id);
+        const workers = blockTeams.reduce((sum, t) => sum + (t.workers || 0), 0);
+        return { name: b.name, workers };
+      }).filter(w => w.workers > 0);
+
+      // Progress by element type
+      const elementTypeMap = new Map<string, { done: number; total: number }>();
+      allTasks.forEach(t => {
+        if (t.element_type) {
+          const prev = elementTypeMap.get(t.element_type) || { done: 0, total: 0 };
+          prev.total += 1;
+          if (t.status === 'Terminé') prev.done += 1;
+          elementTypeMap.set(t.element_type, prev);
+        }
+      });
+      const progressByElementType = Array.from(elementTypeMap.entries()).map(([type, v]) => ({
+        type,
+        progress: v.total > 0 ? (v.done / v.total) * 100 : 0
+      }));
+
+      // Delayed tasks list (top 5)
+      const delayedTasksList = delayedTasksArr.slice(0, 5).map(t => {
+        const block = allBlocks.find(b => b.id === t.block_id);
+        const delayDays = Math.ceil((new Date().getTime() - new Date(t.end_date).getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          element: t.element || t.name || 'Tâche',
+          block: block?.name || 'Général',
+          delay: delayDays > 0 ? delayDays : 0
+        };
+      });
+
+      // Team productivity
+      const teamProductivity = allTeams
+        .filter(t => t.block_id)
+        .map(team => {
+          const blockName = (team as any).blocks?.name || allBlocks.find(b => b.id === team.block_id)?.name || 'N/A';
+          const teamTasks = allTasks.filter(t => t.team_id === team.id);
+          const assigned = teamTasks.length;
+          const completed = teamTasks.filter(t => t.status === 'Terminé').length;
+          return {
+            block: blockName,
+            team: team.name,
+            workers: team.workers || 0,
+            completed,
+            assigned,
+            productivity: assigned > 0 ? (completed / assigned) * 100 : 0
+          };
+        });
+
+      setStats({
+        globalProgress,
+        activeWorkers,
+        delayedTasks,
+        totalBlocks: allBlocks.length,
+        totalFloors: 0, // Not used in the UI anymore
+        totalElements: veCount + slabCount,
+        taskStatusCounts,
+        progressByBlock,
+        progressByZone,
+        weeklyProgress,
+        teamProductivity,
+        progressByElementType,
+        delayedTasksList,
+        workforceDistribution
+      });
+    } catch (error) {
+      console.error('Erreur lors du chargement du dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading || !stats) return (
     <div className="flex flex-col items-center justify-center h-64 space-y-4">
