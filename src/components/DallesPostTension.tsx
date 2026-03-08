@@ -3,6 +3,7 @@ import { Plus, Search, Filter, CheckCircle2, Circle, Loader2, X, Save, Layers } 
 import { Block, Floor, Slab } from '../types';
 import { STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
+import { fetchSlabs as loadSlabs, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createSlab, updateSlabStatus } from '../lib/supabaseService';
 
 export default function DallesPostTension() {
   const [slabs, setSlabs] = useState<Slab[]>([]);
@@ -25,34 +26,26 @@ export default function DallesPostTension() {
     fetchFloors();
   }, []);
 
-  const fetchSlabs = () => fetch('/api/slabs').then(res => res.json()).then(setSlabs);
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
-  const fetchFloors = () => fetch('/api/floors').then(res => res.json()).then(setFloors);
+  const fetchSlabs = async () => { setSlabs(await loadSlabs()); };
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
+  const fetchFloors = async () => { setFloors(await loadFloors()); };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/slabs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        ...formData, 
-        block_id: parseInt(formData.block_id),
-        floor_id: parseInt(formData.floor_id),
-        surface: parseFloat(formData.surface)
-      })
-    }).then(() => {
-      fetchSlabs();
-      setIsModalOpen(false);
+    await createSlab({
+      ...formData,
+      block_id: parseInt(formData.block_id),
+      floor_id: parseInt(formData.floor_id),
+      surface: parseFloat(formData.surface)
     });
+    await fetchSlabs();
+    setIsModalOpen(false);
   };
 
-  const updateStatus = (id: number, field: string, currentStatus: string) => {
+  const updateStatus = async (id: number, field: string, currentStatus: string) => {
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
-    fetch(`/api/slabs/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: nextStatus })
-    }).then(fetchSlabs);
+    await updateSlabStatus(id, field, nextStatus);
+    await fetchSlabs();
   };
 
   const STAGES = [

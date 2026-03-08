@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Users, Briefcase, Box, Trash2, X, Save, Pencil } from 'lucide-react';
 import { Block, Team } from '../types';
 import { motion } from 'motion/react';
+import { fetchTeams as loadTeams, fetchBlocks as loadBlocks, createTeam, updateTeam, deleteTeam as removeTeam } from '../lib/supabaseService';
 
 export default function Equipes() {
   const [teams, setTeams] = useState<Team[]>([]);
@@ -17,8 +18,8 @@ export default function Equipes() {
     fetchBlocks();
   }, []);
 
-  const fetchTeams = () => fetch('/api/teams').then(res => res.json()).then(setTeams);
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
+  const fetchTeams = async () => { setTeams(await loadTeams()); };
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
 
   const resetForm = () => {
     setFormData({ name: '', speciality: '', block_id: '', workers: 0 });
@@ -28,8 +29,6 @@ export default function Equipes() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const isEditing = isEditModalOpen && selectedTeam;
-    const url = isEditing ? `/api/teams/${selectedTeam.id}` : '/api/teams';
-    const method = isEditing ? 'PUT' : 'POST';
 
     const payload = {
       name: formData.name,
@@ -39,17 +38,15 @@ export default function Equipes() {
     };
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        await fetchTeams();
-        setIsModalOpen(false);
-        setIsEditModalOpen(false);
-        resetForm();
+      if (isEditing) {
+        await updateTeam(selectedTeam.id, payload);
+      } else {
+        await createTeam(payload);
       }
+      await fetchTeams();
+      setIsModalOpen(false);
+      setIsEditModalOpen(false);
+      resetForm();
     } catch (err) {
       console.error('Erreur lors de la sauvegarde:', err);
     }
@@ -58,12 +55,10 @@ export default function Equipes() {
   const handleDelete = async () => {
     if (!selectedTeam) return;
     try {
-      const res = await fetch(`/api/teams/${selectedTeam.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        await fetchTeams();
-        setIsDeleteConfirmOpen(false);
-        setSelectedTeam(null);
-      }
+      await removeTeam(selectedTeam.id);
+      await fetchTeams();
+      setIsDeleteConfirmOpen(false);
+      setSelectedTeam(null);
     } catch (err) {
       console.error('Erreur lors de la suppression:', err);
     }

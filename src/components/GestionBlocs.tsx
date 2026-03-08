@@ -3,6 +3,7 @@ import { Plus, Trash2, Edit2, Save, X, Search, Filter } from 'lucide-react';
 import { Block } from '../types';
 import { ZONES, cn } from '../utils';
 import { motion } from 'motion/react';
+import { fetchBlocks as loadBlocks, createBlock, updateBlock, deleteBlock as removeBlock } from '../lib/supabaseService';
 
 export default function GestionBlocs() {
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -14,28 +15,26 @@ export default function GestionBlocs() {
     fetchBlocks();
   }, []);
 
-  const fetchBlocks = () => {
-    fetch('/api/blocks').then(res => res.json()).then(setBlocks);
+  const fetchBlocks = async () => {
+    const data = await loadBlocks();
+    setBlocks(data);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const method = editingBlock ? 'PUT' : 'POST';
-    const url = editingBlock ? `/api/blocks/${editingBlock.id}` : '/api/blocks';
-
-    fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    }).then(() => {
-      fetchBlocks();
-      closeModal();
-    });
+    if (editingBlock) {
+      await updateBlock(editingBlock.id, formData);
+    } else {
+      await createBlock(formData);
+    }
+    await fetchBlocks();
+    closeModal();
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Êtes-vous sûr de vouloir supprimer ce bloc ?')) {
-      fetch(`/api/blocks/${id}`, { method: 'DELETE' }).then(fetchBlocks);
+      await removeBlock(id);
+      await fetchBlocks();
     }
   };
 

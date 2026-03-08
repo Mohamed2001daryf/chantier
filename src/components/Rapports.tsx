@@ -5,6 +5,7 @@ import autoTable from 'jspdf-autotable';
 import { Task, Slab, Block, ProductivityRecord, VerticalElement } from '../types';
 import { format, parseISO, isWithinInterval, subDays, startOfWeek, endOfWeek } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { fetchTasks as loadTasks, fetchSlabs as loadSlabs, fetchBlocks as loadBlocks, fetchProductivity as loadProductivity, fetchVerticalElements as loadVerticalElements } from '../lib/supabaseService';
 
 export default function Rapports() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -18,11 +19,11 @@ export default function Rapports() {
     const fetchData = async () => {
       try {
         const [tasksRes, slabsRes, blocksRes, prodRes, veRes] = await Promise.all([
-          fetch('/api/tasks').then(res => res.json()),
-          fetch('/api/slabs').then(res => res.json()),
-          fetch('/api/blocks').then(res => res.json()),
-          fetch('/api/productivity').then(res => res.json()),
-          fetch('/api/vertical-elements').then(res => res.json())
+          loadTasks(),
+          loadSlabs(),
+          loadBlocks(),
+          loadProductivity(),
+          loadVerticalElements()
         ]);
         setTasks(tasksRes);
         setSlabs(slabsRes);

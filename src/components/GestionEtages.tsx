@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, ArrowUpDown, Layers, X, Save } from 'lucide-react';
 import { Block, Floor } from '../types';
 import { motion } from 'motion/react';
+import { fetchBlocks as loadBlocks, fetchFloors as loadFloors, createFloor, deleteFloor as removeFloor } from '../lib/supabaseService';
 
 export default function GestionEtages() {
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -14,25 +15,21 @@ export default function GestionEtages() {
     fetchFloors();
   }, []);
 
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
-  const fetchFloors = () => fetch('/api/floors').then(res => res.json()).then(setFloors);
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
+  const fetchFloors = async () => { setFloors(await loadFloors()); };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/floors', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...formData, block_id: parseInt(formData.block_id) })
-    }).then(() => {
-      fetchFloors();
-      setIsModalOpen(false);
-      setFormData({ block_id: '', name: '', order_number: 0 });
-    });
+    await createFloor({ ...formData, block_id: parseInt(formData.block_id) } as any);
+    await fetchFloors();
+    setIsModalOpen(false);
+    setFormData({ block_id: '', name: '', order_number: 0 });
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Supprimer cet étage ?')) {
-      fetch(`/api/floors/${id}`, { method: 'DELETE' }).then(fetchFloors);
+      await removeFloor(id);
+      await fetchFloors();
     }
   };
 

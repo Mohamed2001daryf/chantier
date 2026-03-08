@@ -2,13 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { AlertTriangle, Clock, Calendar, Box, ArrowRight } from 'lucide-react';
 import { Task } from '../types';
 import { differenceInDays, parseISO, format } from 'date-fns';
+import { fetchTasks as loadTasks } from '../lib/supabaseService';
 import { cn } from '../utils';
 
 export default function Retards() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useEffect(() => {
-    fetch('/api/tasks').then(res => res.json()).then(setTasks);
+    loadTasks().then(setTasks);
   }, []);
 
   const delayedTasks = tasks.filter(t => {

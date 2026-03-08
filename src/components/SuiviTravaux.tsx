@@ -3,6 +3,7 @@ import { Plus, Search, Filter, CheckCircle2, Circle, Loader2, Edit3, X, Users } 
 import { Block, Floor, VerticalElement, Team, Task } from '../types';
 import { ELEMENT_TYPES, STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
+import { fetchVerticalElements as loadElements, fetchBlocks as loadBlocks, fetchFloors as loadFloors, fetchTeams as loadTeams, fetchTasks as loadTasks, createVerticalElement, deleteVerticalElement, updateVerticalElementStatus } from '../lib/supabaseService';
 
 export default function SuiviTravaux() {
   const [elements, setElements] = useState<VerticalElement[]>([]);
@@ -31,44 +32,34 @@ export default function SuiviTravaux() {
     fetchTasks();
   }, []);
 
-  const fetchElements = () => fetch('/api/vertical-elements').then(res => res.json()).then(setElements);
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
-  const fetchFloors = () => fetch('/api/floors').then(res => res.json()).then(setFloors);
-  const fetchTeams = () => fetch('/api/teams').then(res => res.json()).then(setTeams);
-  const fetchTasks = () => fetch('/api/tasks').then(res => res.json()).then(setTasks);
+  const fetchElements = async () => { setElements(await loadElements()); };
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
+  const fetchFloors = async () => { setFloors(await loadFloors()); };
+  const fetchTeams = async () => { setTeams(await loadTeams()); };
+  const fetchTasks = async () => { setTasks(await loadTasks()); };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (confirm('Voulez-vous vraiment supprimer cet élément ? Cela supprimera également la tâche de planning associée.')) {
-      fetch(`/api/vertical-elements/${id}`, { method: 'DELETE' })
-        .then(res => {
-          if (res.ok) fetchElements();
-        });
+      await deleteVerticalElement(id);
+      await fetchElements();
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    fetch('/api/vertical-elements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        ...formData, 
-        block_id: parseInt(formData.block_id),
-        floor_id: parseInt(formData.floor_id)
-      })
-    }).then(() => {
-      fetchElements();
-      setIsModalOpen(false);
+    await createVerticalElement({
+      ...formData,
+      block_id: parseInt(formData.block_id),
+      floor_id: parseInt(formData.floor_id)
     });
+    await fetchElements();
+    setIsModalOpen(false);
   };
 
-  const updateStatus = (id: number, field: string, currentStatus: string) => {
+  const updateStatus = async (id: number, field: string, currentStatus: string) => {
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
-    fetch(`/api/vertical-elements/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: nextStatus })
-    }).then(fetchElements);
+    await updateVerticalElementStatus(id, field, nextStatus);
+    await fetchElements();
   };
 
   // Build a map of element_id -> team_name from tasks

@@ -4,6 +4,7 @@ import { Block, Team, ProductivityRecord, Task } from '../types';
 import { motion } from 'motion/react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { format } from 'date-fns';
+import { fetchProductivity as loadRecords, fetchBlocks as loadBlocks, fetchTeams as loadTeams, fetchTasks as loadTasks, createProductivity } from '../lib/supabaseService';
 
 export default function Productivite() {
   const [records, setRecords] = useState<ProductivityRecord[]>([]);
@@ -29,31 +30,30 @@ export default function Productivite() {
     fetchTasks();
   }, []);
 
-  const fetchRecords = () => fetch('/api/productivity').then(res => res.json()).then(setRecords);
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
-  const fetchTeams = () => fetch('/api/teams').then(res => res.json()).then(setTeams);
-  const fetchTasks = () => fetch('/api/tasks').then(res => res.json()).then(setTasks);
+  const fetchRecords = async () => { setRecords(await loadRecords()); };
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
+  const fetchTeams = async () => { setTeams(await loadTeams()); };
+  const fetchTasks = async () => { setTasks(await loadTasks()); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const basePayload = {
-      ...formData,
       block_id: parseInt(formData.block_id),
       team_id: parseInt(formData.team_id),
+      work_type: formData.work_type,
+      workers_count: formData.workers_count,
+      quantity_realized: formData.quantity_realized,
+      date: formData.date
     };
 
     // Insert one productivity row per selected task (or one with no task if none selected)
     const taskIds = selectedTaskIds.length > 0 ? selectedTaskIds : [null];
     await Promise.all(
       taskIds.map(taskId =>
-        fetch('/api/productivity', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...basePayload, task_id: taskId })
-        })
+        createProductivity({ ...basePayload, task_id: taskId })
       )
     );
-    fetchRecords();
+    await fetchRecords();
     setSelectedTaskIds([]);
     setIsModalOpen(false);
   };

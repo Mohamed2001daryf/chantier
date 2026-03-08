@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { fetchTasks as loadTasks, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createTask as svcCreateTask, updateTask as svcUpdateTask, deleteTask as svcDeleteTask, bulkDeleteTasks as svcBulkDeleteTasks } from '../lib/supabaseService';
 
 // Aliases for automatic column detection (lowercase)
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -106,9 +107,9 @@ export default function Planning() {
     fetchFloors();
   }, []);
 
-  const fetchTasks = () => fetch('/api/tasks').then(res => res.json()).then(setTasks);
-  const fetchBlocks = () => fetch('/api/blocks').then(res => res.json()).then(setBlocks);
-  const fetchFloors = () => fetch('/api/floors').then(res => res.json()).then(setFloors);
+  const fetchTasks = async () => { setTasks(await loadTasks()); };
+  const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
+  const fetchFloors = async () => { setFloors(await loadFloors()); };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,8 +119,6 @@ export default function Planning() {
     const duration = differenceInDays(end, start);
 
     const isEditing = isEditModalOpen && selectedTask;
-    const url = isEditing ? `/api/tasks/${selectedTask.id}` : '/api/tasks';
-    const method = isEditing ? 'PUT' : 'POST';
 
     const payload = {
       block_id: formData.block_id ? parseInt(formData.block_id) : null,
@@ -136,50 +135,41 @@ export default function Planning() {
     };
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        await fetchTasks();
-        setIsModalOpen(false);
-        setIsEditModalOpen(false);
-        setSelectedTask(null);
+      if (isEditing) {
+        await svcUpdateTask(selectedTask.id, payload);
+      } else {
+        await svcCreateTask(payload);
       }
+      await fetchTasks();
+      setIsModalOpen(false);
+      setIsEditModalOpen(false);
+      setSelectedTask(null);
     } catch (err) {
       console.error('Erreur lors de la sauvegarde:', err);
     }
   };
 
-  const handleDelete = (id: number) => {
-    fetch(`/api/tasks/${id}`, { method: 'DELETE' })
-      .then(res => {
-        if (res.ok) {
-          // Optimistically update UI
-          setTasks(prev => prev.filter(t => t.id !== id));
-          setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
-          setIsDeleteConfirmOpen(false);
-          setSelectedTask(null);
-        }
-      })
-      .catch(err => console.error("Erreur lors de la suppression:", err));
+  const handleDelete = async (id: number) => {
+    try {
+      await svcDeleteTask(id);
+      setTasks(prev => prev.filter(t => t.id !== id));
+      setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
+      setIsDeleteConfirmOpen(false);
+      setSelectedTask(null);
+    } catch (err) {
+      console.error("Erreur lors de la suppression:", err);
+    }
   };
 
-  const handleBulkDelete = () => {
-    fetch('/api/tasks/bulk-delete', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: selectedIds })
-    })
-      .then(res => {
-        if (res.ok) {
-          setTasks(prev => prev.filter(t => !selectedIds.includes(t.id)));
-          setSelectedIds([]);
-          setIsBulkDeleteConfirmOpen(false);
-        }
-      })
-      .catch(err => console.error("Erreur lors de la suppression groupée:", err));
+  const handleBulkDelete = async () => {
+    try {
+      await svcBulkDeleteTasks(selectedIds);
+      setTasks(prev => prev.filter(t => !selectedIds.includes(t.id)));
+      setSelectedIds([]);
+      setIsBulkDeleteConfirmOpen(false);
+    } catch (err) {
+      console.error("Erreur lors de la suppression groupée:", err);
+    }
   };
 
   const toggleSelectAll = () => {
@@ -335,10 +325,7 @@ export default function Planning() {
       }
 
       try {
-        await fetch('/api/tasks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await svcCreateTask({
             block_id: block?.id || null,
             floor_id: floor?.id || null,
             element: elementName,
@@ -348,8 +335,7 @@ export default function Planning() {
             duration: Math.abs(duration) || 0,
             status: mappedStatus,
             element_type: elementTypeVal ? normalizeElementType(elementTypeVal) : null
-          })
-        });
+          });
         imported++;
       } catch (err) {
         errors.push(`Ligne ${i + 2}: Erreur lors de l'import de "${elementName}"`);
