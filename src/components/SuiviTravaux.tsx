@@ -101,13 +101,15 @@ export default function SuiviTravaux() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Suivi des Éléments Verticaux</h2>
           <p className="text-gray-500 text-sm sm:text-base">Suivez l'avancement du ferraillage, coffrage et coulage.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
-        >
-          <Plus size={18} />
-          Ajouter Élément
-        </button>
+        {role !== 'viewer' && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Ajouter Élément
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
