@@ -33,18 +33,21 @@ export default function Dashboard() {
         { data: blocks },
         { data: teams },
         { data: verticalElements },
-        { data: slabs }
+        { data: slabs },
+        { data: floors }
       ] = await Promise.all([
         supabase.from('tasks').select('*').eq('user_id', uid),
         supabase.from('blocks').select('*').eq('user_id', uid),
         supabase.from('teams').select('*, blocks(name)').eq('user_id', uid),
         supabase.from('vertical_elements').select('id').eq('user_id', uid),
-        supabase.from('slabs').select('id').eq('user_id', uid)
+        supabase.from('slabs').select('id').eq('user_id', uid),
+        supabase.from('floors').select('id, name, order_number').eq('user_id', uid)
       ]);
 
       const allTasks = tasks || [];
       const allBlocks = blocks || [];
       const allTeams = teams || [];
+      const allFloors = floors || [];
       const veCount = verticalElements?.length || 0;
       const slabCount = slabs?.length || 0;
 
@@ -153,6 +156,37 @@ export default function Dashboard() {
           };
         });
 
+      // Floor Progress
+      const requiredElements = ['Plancher haut', 'Poteaux', 'Voiles intérieurs', 'Voiles périphériques', 'Radier', 'RSD', 'Terrassement'];
+      
+      const progressByFloor = allFloors.map(floor => {
+        const floorTasks = allTasks.filter(t => t.floor_id === floor.id);
+        
+        const elementsProgress = requiredElements.map(type => {
+          // Find all tasks on this floor that match the element type
+          // Note: Depending on how data is entered, we might need to check 'element_type' or 'element' name
+          // We'll check both for robustness, prioritizing element_type
+          const typeTasks = floorTasks.filter(t => 
+            (t.element_type && t.element_type.toLowerCase().includes(type.toLowerCase())) ||
+            (t.element && t.element.toLowerCase().includes(type.toLowerCase()))
+          );
+          
+          const doneCount = typeTasks.filter(t => t.status === 'Terminé').length;
+          const totalCount = typeTasks.length;
+          
+          return {
+            type,
+            progress: totalCount > 0 ? (doneCount / totalCount) * 100 : 0
+          };
+        });
+
+        return {
+          floorName: floor.name,
+          order_number: floor.order_number || 0,
+          elements: elementsProgress
+        };
+      }).sort((a, b) => a.order_number - b.order_number); // Sort by order_number ascending or descending as needed
+
       setStats({
         globalProgress,
         activeWorkers,
@@ -167,7 +201,8 @@ export default function Dashboard() {
         teamProductivity,
         progressByElementType,
         delayedTasksList,
-        workforceDistribution
+        workforceDistribution,
+        progressByFloor
       });
     } catch (error) {
       console.error('Erreur lors du chargement du dashboard:', error);
@@ -443,6 +478,65 @@ export default function Dashboard() {
           </table>
         </div>
       </div>
+
+      {/* SECTION 5 : FLOOR PROGRESS (NEW CHARTS) */}
+      {stats.progressByFloor.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold flex items-center gap-2 text-[#001F3F]">
+            <Layers size={24} className="text-[#FF851B]" />
+            Avancement par Étage
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {stats.progressByFloor.map((floor, idx) => (
+              <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[400px]">
+                <h3 className="text-lg font-bold text-center mb-4 text-[#001F3F]">{floor.floorName.toUpperCase()}</h3>
+                <div className="flex-1 w-full h-full min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={floor.elements}
+                      margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
+                      <XAxis 
+                        type="number" 
+                        domain={[0, 100]} 
+                        tickFormatter={(val) => `${val}%`}
+                        tick={{fontSize: 12}}
+                      />
+                      <YAxis 
+                        type="category" 
+                        dataKey="type" 
+                        width={120} 
+                        tick={{fontSize: 11, fill: '#4B5563'}}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => [`${Math.round(value)}%`, 'Avancement']}
+                        cursor={{fill: '#F3F4F6'}}
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar 
+                        dataKey="progress" 
+                        fill="#00B050" // A green matching the screenshot
+                        radius={[0, 4, 4, 0]} 
+                        barSize={12}
+                        background={{ fill: '#F3F4F6', radius: [0, 4, 4, 0] }}
+                      >
+                        {floor.elements.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.progress > 0 ? '#00B050' : '#4FA0E0'} /> 
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

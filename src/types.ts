@@ -113,4 +113,9 @@ export interface DashboardStats {
   progressByElementType: { type: string; progress: number }[];
   delayedTasksList: { element: string; block: string; delay: number }[];
   workforceDistribution: { name: string; workers: number }[];
+  progressByFloor: { 
+    floorName: string; 
+    order_number: number;
+    elements: { type: string; progress: number }[] 
+  }[];
 }
