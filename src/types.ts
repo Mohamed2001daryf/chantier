@@ -99,7 +99,21 @@ export interface DashboardStats {
   totalFloors: number;
   totalElements: number;
   taskStatusCounts: { status: string; count: number }[];
-  progressByBlock: { name: string; progress: number }[];
+  progressByBlock: { 
+    id: number;
+    name: string; 
+    progress: number;
+    floors: {
+      id: number;
+      name: string;
+      order_number: number;
+      elements: {
+        type: string;
+        done: number;
+        total: number;
+      }[];
+    }[];
+  }[];
   progressByZone: { name: string; progress: number }[];
   weeklyProgress: { name: string; completed: number }[];
   teamProductivity: { 

@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { 
   Users, AlertTriangle, CheckCircle2, Clock, TrendingUp, Layers, Box, 
-  Building2, Layout, Activity, Calendar, UserCheck, Timer
+  Building2, Layout, Activity, Calendar, UserCheck, Timer, ChevronDown, ChevronRight
 } from 'lucide-react';
 import { DashboardStats } from '../types';
 import { motion } from 'motion/react';
@@ -17,6 +17,19 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedElementBlock, setSelectedElementBlock] = useState<string>('all');
+  const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
+
+  const toggleBlock = (blockId: number) => {
+    setExpandedBlocks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(blockId)) {
+        newSet.delete(blockId);
+      } else {
+        newSet.add(blockId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -40,9 +53,9 @@ export default function Dashboard() {
         supabase.from('tasks').select('*').eq('user_id', uid),
         supabase.from('blocks').select('*').eq('user_id', uid),
         supabase.from('teams').select('*, blocks(name)').eq('user_id', uid),
-        supabase.from('vertical_elements').select('id').eq('user_id', uid),
-        supabase.from('slabs').select('id').eq('user_id', uid),
-        supabase.from('floors').select('id, name, order_number').eq('user_id', uid)
+        supabase.from('vertical_elements').select('id, block_id, floor_id, type, coulage_status').eq('user_id', uid),
+        supabase.from('slabs').select('id, block_id, floor_id, status').eq('user_id', uid),
+        supabase.from('floors').select('id, name, order_number, block_id').eq('user_id', uid)
       ]);
 
       const allTasks = tasks || [];
@@ -73,12 +86,54 @@ export default function Dashboard() {
       });
       const taskStatusCounts = Array.from(statusMap.entries()).map(([status, count]) => ({ status, count }));
 
-      // Progress by block
+      // Detailed Progress by block
       const progressByBlock = allBlocks.map(b => {
         const blockTasks = allTasks.filter(t => t.block_id === b.id);
         const done = blockTasks.filter(t => t.status === 'Terminé').length;
         const total = blockTasks.length;
-        return { name: b.name, progress: total > 0 ? (done / total) * 100 : 0 };
+        const progress = total > 0 ? (done / total) * 100 : 0;
+
+        const blockFloors = allFloors
+          .filter(f => f.block_id === b.id)
+          .sort((f1, f2) => (f1.order_number || 0) - (f2.order_number || 0));
+
+        const nestedFloors = blockFloors.map(f => {
+          const floorElements = (verticalElements || []).filter(ve => ve.floor_id === f.id && ve.block_id === b.id);
+          const floorSlabs = (slabs || []).filter(s => s.floor_id === f.id && s.block_id === b.id);
+
+          const poteaux = floorElements.filter(e => e.type?.toLowerCase().includes('poteau'));
+          const voiles = floorElements.filter(e => e.type?.toLowerCase().includes('voile'));
+
+          return {
+            id: f.id,
+            name: f.name,
+            order_number: f.order_number || 0,
+            elements: [
+              {
+                type: 'Poteaux',
+                done: poteaux.filter(p => p.coulage_status === 'Terminé').length,
+                total: poteaux.length
+              },
+              {
+                type: 'Voiles',
+                done: voiles.filter(v => v.coulage_status === 'Terminé').length,
+                total: voiles.length
+              },
+              {
+                type: 'Dalles',
+                done: floorSlabs.filter(s => s.status === 'Terminé').length,
+                total: floorSlabs.length
+              }
+            ]
+          };
+        });
+
+        return { 
+          id: b.id,
+          name: b.name, 
+          progress,
+          floors: nestedFloors
+        };
       });
 
       // Progress by zone
@@ -144,17 +199,24 @@ export default function Dashboard() {
         }
       });
 
-      const progressByElementTypeAll = Array.from(elementTypeMapAll.entries()).map(([type, v]) => ({
-        type,
-        progress: v.total > 0 ? (v.done / v.total) * 100 : 0
-      }));
+      // Only keep the allowed elements, excluding 'Poteau' and making sure total > 0
+      const allowedElementTypes = ['Poteaux', 'Voiles', 'Dalles'];
+
+      const progressByElementTypeAll = Array.from(elementTypeMapAll.entries())
+        .filter(([type, v]) => allowedElementTypes.includes(type) && v.total > 0)
+        .map(([type, v]) => ({
+          type,
+          progress: (v.done / v.total) * 100
+        }));
 
       const progressByElementTypeByBlock: Record<string, { type: string; progress: number }[]> = {};
       Array.from(elementTypeMapByBlock.entries()).forEach(([blockName, blockMap]) => {
-        progressByElementTypeByBlock[blockName] = Array.from(blockMap.entries()).map(([type, v]) => ({
-          type,
-          progress: v.total > 0 ? (v.done / v.total) * 100 : 0
-        }));
+        progressByElementTypeByBlock[blockName] = Array.from(blockMap.entries())
+          .filter(([type, v]) => allowedElementTypes.includes(type) && v.total > 0)
+          .map(([type, v]) => ({
+            type,
+            progress: (v.done / v.total) * 100
+          }));
       });
 
       const progressByElementType = {
@@ -355,21 +417,52 @@ export default function Dashboard() {
             <Layout className="text-[#FF851B]" size={20} />
             Avancement par Bloc
           </h3>
-          <div className="space-y-6">
-            {stats.progressByBlock.map((block, i) => (
-              <div key={i} className="space-y-2">
-                <div className="flex justify-between text-sm font-bold">
-                  <span>{block.name}</span>
-                  <span className="text-[#FF851B]">{Math.round(block.progress)}%</span>
-                </div>
-                <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${block.progress}%` }}
-                    transition={{ duration: 1, delay: i * 0.1 }}
-                    className="h-full bg-[#001F3F]"
-                  />
-                </div>
+          <div className="space-y-4">
+            {stats.progressByBlock.map((block) => (
+              <div key={block.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                <button 
+                  onClick={() => toggleBlock(block.id)}
+                  className="w-full flex items-center justify-between p-4 flex-wrap gap-2 bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {expandedBlocks.has(block.id) ? <ChevronDown size={18} className="text-gray-500" /> : <ChevronRight size={18} className="text-gray-500" />}
+                    <span className="font-bold text-[#001F3F] text-left">📦 {block.name}</span>
+                  </div>
+                  <div className="flex items-center gap-3 ml-auto">
+                    <span className="text-sm font-bold text-[#FF851B]">{Math.round(block.progress)}%</span>
+                    {Math.round(block.progress) === 100 && <CheckCircle2 size={16} className="text-green-500" />}
+                  </div>
+                </button>
+                
+                {expandedBlocks.has(block.id) && (
+                  <div className="p-4 bg-white space-y-4">
+                    {block.floors.map((floor, fIdx) => (
+                      <div key={floor.id} className="relative pl-6">
+                        {/* Tree line connector */}
+                        <div className="absolute left-2 top-0 bottom-0 w-px bg-gray-200" style={{ height: fIdx === block.floors.length - 1 ? '16px' : '100%' }}></div>
+                        <div className="absolute left-2 top-3 w-4 h-px bg-gray-200"></div>
+                        
+                        <h4 className="font-bold text-sm text-[#001F3F] mb-2">{floor.name}</h4>
+                        <div className="pl-4 space-y-1">
+                          {floor.elements.map((el, eIdx) => {
+                            const isDone = el.total > 0 && el.done === el.total;
+                            return (
+                              <div key={eIdx} className="flex items-center text-sm text-gray-600">
+                                <span className="text-gray-400 mr-2">•</span>
+                                <span className="w-20 inline-block">{el.type}</span>
+                                <span className="mr-2">: {el.done}/{el.total} terminés</span>
+                                {isDone && <CheckCircle2 size={14} className="text-green-500 inline" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                    {block.floors.length === 0 && (
+                      <p className="text-sm text-gray-400 italic pl-6">Aucun étage ou élément défini.</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
