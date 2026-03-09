@@ -16,6 +16,7 @@ import { getActiveProjectOwnerId } from '../lib/supabaseService';
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedElementBlock, setSelectedElementBlock] = useState<string>('all');
 
   useEffect(() => {
     loadDashboardData();
@@ -113,19 +114,47 @@ export default function Dashboard() {
       }).filter(w => w.workers > 0);
 
       // Progress by element type
-      const elementTypeMap = new Map<string, { done: number; total: number }>();
+      const elementTypeMapAll = new Map<string, { done: number; total: number }>();
+      const elementTypeMapByBlock = new Map<string, Map<string, { done: number; total: number }>>();
+
       allTasks.forEach(t => {
         if (t.element_type) {
-          const prev = elementTypeMap.get(t.element_type) || { done: 0, total: 0 };
-          prev.total += 1;
-          if (t.status === 'Terminé') prev.done += 1;
-          elementTypeMap.set(t.element_type, prev);
+          // Global
+          const prevAll = elementTypeMapAll.get(t.element_type) || { done: 0, total: 0 };
+          prevAll.total += 1;
+          if (t.status === 'Terminé') prevAll.done += 1;
+          elementTypeMapAll.set(t.element_type, prevAll);
+          
+          // By Block
+          const blockName = t.block_name || allBlocks.find(b => b.id === t.block_id)?.name || 'Général';
+          if (!elementTypeMapByBlock.has(blockName)) {
+            elementTypeMapByBlock.set(blockName, new Map());
+          }
+          const blockMap = elementTypeMapByBlock.get(blockName)!;
+          const prevBlock = blockMap.get(t.element_type) || { done: 0, total: 0 };
+          prevBlock.total += 1;
+          if (t.status === 'Terminé') prevBlock.done += 1;
+          blockMap.set(t.element_type, prevBlock);
         }
       });
-      const progressByElementType = Array.from(elementTypeMap.entries()).map(([type, v]) => ({
+
+      const progressByElementTypeAll = Array.from(elementTypeMapAll.entries()).map(([type, v]) => ({
         type,
         progress: v.total > 0 ? (v.done / v.total) * 100 : 0
       }));
+
+      const progressByElementTypeByBlock: Record<string, { type: string; progress: number }[]> = {};
+      Array.from(elementTypeMapByBlock.entries()).forEach(([blockName, blockMap]) => {
+        progressByElementTypeByBlock[blockName] = Array.from(blockMap.entries()).map(([type, v]) => ({
+          type,
+          progress: v.total > 0 ? (v.done / v.total) * 100 : 0
+        }));
+      });
+
+      const progressByElementType = {
+        all: progressByElementTypeAll,
+        byBlock: progressByElementTypeByBlock
+      };
 
       // Delayed tasks list (top 5)
       const delayedTasksList = delayedTasksArr.slice(0, 5).map(t => {
@@ -373,14 +402,26 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* SECTION 5 : WORK BY ELEMENT TYPE */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold text-[#001F3F] mb-6 flex items-center gap-2">
-            <Box className="text-[#FF851B]" size={20} />
-            Avancement par Type d'Élément
-          </h3>
-          <div className="h-[300px]">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-[#001F3F] flex items-center gap-2">
+              <Box className="text-[#FF851B]" size={20} />
+              Avancement par Type d'Élément
+            </h3>
+            <select
+              value={selectedElementBlock}
+              onChange={(e) => setSelectedElementBlock(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-medium focus:ring-2 focus:ring-[#FF851B] outline-none"
+            >
+              <option value="all">Tous les blocs</option>
+              {Object.keys(stats.progressByElementType.byBlock).map(block => (
+                <option key={block} value={block}>{block}</option>
+              ))}
+            </select>
+          </div>
+          <div className="h-[300px] flex-1">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.progressByElementType} layout="vertical">
+              <BarChart data={selectedElementBlock === 'all' ? stats.progressByElementType.all : stats.progressByElementType.byBlock[selectedElementBlock] || []} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#F3F4F6" />
                 <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis dataKey="type" type="category" axisLine={false} tickLine={false} width={120} tick={{ fontSize: 12 }} />

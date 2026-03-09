@@ -110,7 +110,10 @@ export interface DashboardStats {
     assigned: number; 
     productivity: number 
   }[];
-  progressByElementType: { type: string; progress: number }[];
+  progressByElementType: {
+    all: { type: string; progress: number }[];
+    byBlock: Record<string, { type: string; progress: number }[]>;
+  };
   delayedTasksList: { element: string; block: string; delay: number }[];
   workforceDistribution: { name: string; workers: number }[];
   progressByFloor: { 
