@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion } from 'motion/react';
-import { AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Lock, Mail, User } from 'lucide-react';
 
 export default function Login() {
+  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -24,6 +28,42 @@ export default function Login() {
         ? 'Email ou mot de passe incorrect.'
         : error.message
       );
+    }
+    setLoading(false);
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    if (password.length < 6) {
+      setError('Le mot de passe doit contenir au moins 6 caractères.');
+      setLoading(false);
+      return;
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        }
+      }
+    });
+
+    if (error) {
+      if (error.message.includes('already registered')) {
+        setError('Cet email est déjà utilisé. Essayez de vous connecter.');
+      } else {
+        setError(error.message);
+      }
+    } else {
+      setSuccess('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
+      setIsSignUp(false);
+      setPassword('');
     }
     setLoading(false);
   };
@@ -57,11 +97,17 @@ export default function Login() {
           <p className="text-white/50 text-sm mt-1">Gestion de chantier intelligente</p>
         </div>
 
-        {/* Login Card */}
+        {/* Login / SignUp Card */}
         <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 overflow-hidden">
           <div className="p-8">
-            <h2 className="text-xl font-bold text-white mb-1">Connexion</h2>
-            <p className="text-white/40 text-sm mb-6">Entrez vos identifiants pour accéder à votre espace.</p>
+            <h2 className="text-xl font-bold text-white mb-1">
+              {isSignUp ? 'Créer un compte' : 'Connexion'}
+            </h2>
+            <p className="text-white/40 text-sm mb-6">
+              {isSignUp 
+                ? 'Remplissez le formulaire pour créer votre espace.'
+                : 'Entrez vos identifiants pour accéder à votre espace.'}
+            </p>
 
             {error && (
               <motion.div
@@ -74,7 +120,38 @@ export default function Login() {
               </motion.div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
+            {success && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-xl px-4 py-3 mb-6"
+              >
+                <CheckCircle2 size={18} className="text-green-400 shrink-0" />
+                <span className="text-green-300 text-sm">{success}</span>
+              </motion.div>
+            )}
+
+            <form onSubmit={isSignUp ? handleSignUp : handleLogin} className="space-y-4">
+              {isSignUp && (
+                <div>
+                  <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">
+                    Nom complet
+                  </label>
+                  <div className="relative">
+                    <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
+                    <input
+                      id="signup-name"
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Mohamed Darif"
+                      className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 outline-none focus:ring-2 focus:ring-[#FF851B] focus:border-transparent transition-all"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-white/60 uppercase tracking-wider mb-2">
                   Email
@@ -106,9 +183,13 @@ export default function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
+                    minLength={6}
                     className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/25 outline-none focus:ring-2 focus:ring-[#FF851B] focus:border-transparent transition-all"
                   />
                 </div>
+                {isSignUp && (
+                  <p className="text-white/30 text-xs mt-1.5">Minimum 6 caractères</p>
+                )}
               </div>
 
               <button
@@ -120,13 +201,26 @@ export default function Login() {
                 {loading ? (
                   <>
                     <Loader2 size={20} className="animate-spin" />
-                    Connexion en cours...
+                    {isSignUp ? 'Création en cours...' : 'Connexion en cours...'}
                   </>
                 ) : (
-                  'Se connecter'
+                  isSignUp ? 'Créer mon compte' : 'Se connecter'
                 )}
               </button>
             </form>
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(!isSignUp); setError(''); setSuccess(''); }}
+                className="text-sm text-[#FF851B] hover:text-[#FFB366] font-semibold transition-colors"
+              >
+                {isSignUp 
+                  ? 'Déjà un compte ? Se connecter'
+                  : "Pas de compte ? S'inscrire"
+                }
+              </button>
+            </div>
           </div>
 
           <div className="bg-white/5 border-t border-white/10 px-8 py-4 text-center">

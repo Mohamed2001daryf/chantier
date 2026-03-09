@@ -1,14 +1,23 @@
 import { supabase } from './supabase';
 
+// ─── HELPER: Get current user ID ──────────────────────────
+const getUserId = async (): Promise<string> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Non authentifié');
+  return user.id;
+};
+
 // ─── BLOCKS ───────────────────────────────────────────────
 export const fetchBlocks = async () => {
-  const { data, error } = await supabase.from('blocks').select('*');
+  const uid = await getUserId();
+  const { data, error } = await supabase.from('blocks').select('*').eq('user_id', uid);
   if (error) console.error('fetchBlocks error:', error);
   return data || [];
 };
 
 export const createBlock = async (payload: { name: string; zone: string; description: string }) => {
-  const { data, error } = await supabase.from('blocks').insert(payload).select().single();
+  const uid = await getUserId();
+  const { data, error } = await supabase.from('blocks').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createBlock error:', error);
   return data;
 };
@@ -25,9 +34,11 @@ export const deleteBlock = async (id: number) => {
 
 // ─── FLOORS ───────────────────────────────────────────────
 export const fetchFloors = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('floors')
     .select('*, blocks(name)')
+    .eq('user_id', uid)
     .order('order_number', { ascending: true });
   if (error) console.error('fetchFloors error:', error);
   return (data || []).map((f: any) => ({
@@ -38,7 +49,8 @@ export const fetchFloors = async () => {
 };
 
 export const createFloor = async (payload: { block_id: number; name: string; order_number: number }) => {
-  const { data, error } = await supabase.from('floors').insert(payload).select().single();
+  const uid = await getUserId();
+  const { data, error } = await supabase.from('floors').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createFloor error:', error);
   return data;
 };
@@ -50,9 +62,11 @@ export const deleteFloor = async (id: number) => {
 
 // ─── TEAMS ────────────────────────────────────────────────
 export const fetchTeams = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('teams')
-    .select('*, blocks(name)');
+    .select('*, blocks(name)')
+    .eq('user_id', uid);
   if (error) console.error('fetchTeams error:', error);
   return (data || []).map((t: any) => ({
     ...t,
@@ -62,7 +76,8 @@ export const fetchTeams = async () => {
 };
 
 export const createTeam = async (payload: { name: string; speciality: string; block_id: number | null; workers: number }) => {
-  const { data, error } = await supabase.from('teams').insert(payload).select().single();
+  const uid = await getUserId();
+  const { data, error } = await supabase.from('teams').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createTeam error:', error);
   return data;
 };
@@ -79,9 +94,11 @@ export const deleteTeam = async (id: number) => {
 
 // ─── TASKS ────────────────────────────────────────────────
 export const fetchTasks = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('tasks')
     .select('*, blocks(name), floors(name), teams(name)')
+    .eq('user_id', uid)
     .order('start_date', { ascending: true });
   if (error) console.error('fetchTasks error:', error);
   return (data || []).map((t: any) => ({
@@ -96,6 +113,7 @@ export const fetchTasks = async () => {
 };
 
 export const createTask = async (payload: any) => {
+  const uid = await getUserId();
   let element_id = null;
   let slab_id = null;
 
@@ -105,7 +123,7 @@ export const createTask = async (payload: any) => {
     let finalFloorId = payload.floor_id;
 
     if (!finalBlockId || !finalFloorId) {
-      const { data: defaultBlock } = await supabase.from('blocks').select('id').order('id').limit(1).single();
+      const { data: defaultBlock } = await supabase.from('blocks').select('id').eq('user_id', uid).order('id').limit(1).single();
       if (defaultBlock) {
         finalBlockId = finalBlockId || defaultBlock.id;
         const { data: defaultFloor } = await supabase.from('floors').select('id').eq('block_id', finalBlockId).order('id').limit(1).single();
@@ -122,7 +140,8 @@ export const createTask = async (payload: any) => {
         surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
         start_date: payload.start_date,
         end_date: payload.end_date,
-        status: payload.status || 'Non commencé'
+        status: payload.status || 'Non commencé',
+        user_id: uid
       }).select('id').single();
       slab_id = slabData?.id || null;
     }
@@ -132,7 +151,8 @@ export const createTask = async (payload: any) => {
       floor_id: payload.floor_id,
       type: payload.element_type,
       name: payload.element,
-      axes: payload.axes || null
+      axes: payload.axes || null,
+      user_id: uid
     }).select('id').single();
     element_id = veData?.id || null;
   }
@@ -151,7 +171,8 @@ export const createTask = async (payload: any) => {
     slab_id: slab_id,
     axes: payload.axes || null,
     surface: payload.surface || 0,
-    team_id: payload.team_id || null
+    team_id: payload.team_id || null,
+    user_id: uid
   }).select().single();
 
   if (error) console.error('createTask error:', error);
@@ -159,7 +180,6 @@ export const createTask = async (payload: any) => {
 };
 
 export const updateTask = async (id: number, payload: any) => {
-  // Get current task to find linked elements
   const { data: task } = await supabase.from('tasks').select('element_id, slab_id, element_type').eq('id', id).single();
 
   const { error } = await supabase.from('tasks').update({
@@ -179,7 +199,6 @@ export const updateTask = async (id: number, payload: any) => {
 
   if (error) console.error('updateTask error:', error);
 
-  // Sync with linked elements
   if (task) {
     if (task.slab_id) {
       await supabase.from('slabs').update({
@@ -216,9 +235,11 @@ export const bulkDeleteTasks = async (ids: number[]) => {
 
 // ─── VERTICAL ELEMENTS ───────────────────────────────────
 export const fetchVerticalElements = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('vertical_elements')
-    .select('*, blocks(name), floors(name)');
+    .select('*, blocks(name), floors(name)')
+    .eq('user_id', uid);
   if (error) console.error('fetchVerticalElements error:', error);
   return (data || []).map((e: any) => ({
     ...e,
@@ -230,12 +251,14 @@ export const fetchVerticalElements = async () => {
 };
 
 export const createVerticalElement = async (payload: any) => {
+  const uid = await getUserId();
   const { data: veData, error } = await supabase.from('vertical_elements').insert({
     block_id: payload.block_id || null,
     floor_id: payload.floor_id || null,
     type: payload.type || null,
     name: payload.name || null,
-    axes: payload.axes || null
+    axes: payload.axes || null,
+    user_id: uid
   }).select('id').single();
   if (error) console.error('createVerticalElement error:', error);
   const elementId = veData?.id;
@@ -250,7 +273,8 @@ export const createVerticalElement = async (payload: any) => {
     element: payload.name, description: payload.name,
     start_date: startDate, end_date: endDate, duration,
     status: 'Non commencé', element_id: elementId,
-    element_type: payload.type, axes: payload.axes
+    element_type: payload.type, axes: payload.axes,
+    user_id: uid
   });
 
   return elementId;
@@ -275,7 +299,6 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
     return;
   }
 
-  // Sync status with task
   if (field === 'coulage_status' && newStatus === 'Terminé') {
     await supabase.from('tasks').update({ status: 'Terminé' }).eq('element_id', id);
   } else if (newStatus === 'En cours') {
@@ -285,9 +308,11 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
 
 // ─── SLABS ────────────────────────────────────────────────
 export const fetchSlabs = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('slabs')
-    .select('*, blocks(name), floors(name)');
+    .select('*, blocks(name), floors(name)')
+    .eq('user_id', uid);
   if (error) console.error('fetchSlabs error:', error);
   return (data || []).map((s: any) => ({
     ...s,
@@ -299,6 +324,7 @@ export const fetchSlabs = async () => {
 };
 
 export const createSlab = async (payload: any) => {
+  const uid = await getUserId();
   const { data: slabData, error } = await supabase.from('slabs').insert({
     block_id: payload.block_id || null,
     floor_id: payload.floor_id || null,
@@ -307,7 +333,8 @@ export const createSlab = async (payload: any) => {
     surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
     start_date: payload.start_date || null,
     end_date: payload.end_date || null,
-    status: 'Non commencé'
+    status: 'Non commencé',
+    user_id: uid
   }).select('id').single();
   if (error) console.error('createSlab error:', error);
   const slabId = slabData?.id;
@@ -323,7 +350,8 @@ export const createSlab = async (payload: any) => {
     start_date: startDate, end_date: endDate, duration,
     status: 'Non commencé', element_type: 'Dalle',
     slab_id: slabId, axes: payload.axes,
-    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0
+    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
+    user_id: uid
   });
 
   return slabId;
@@ -332,7 +360,6 @@ export const createSlab = async (payload: any) => {
 export const updateSlabStatus = async (id: number, field: string, newStatus: string) => {
   await supabase.from('slabs').update({ [field]: newStatus }).eq('id', id);
 
-  // Sync overall status
   if (field === 'coulage_status' && newStatus === 'Terminé') {
     await supabase.from('tasks').update({ status: 'Terminé' }).eq('slab_id', id);
     await supabase.from('slabs').update({ status: 'Terminé' }).eq('id', id);
@@ -358,7 +385,6 @@ export const updateSlab = async (id: number, payload: any) => {
   }).eq('id', id);
   if (error) console.error('updateSlab error:', error);
 
-  // Sync with linked task
   await supabase.from('tasks').update({
     element: payload.name,
     description: payload.name,
@@ -371,9 +397,11 @@ export const updateSlab = async (id: number, payload: any) => {
 
 // ─── PRODUCTIVITY ─────────────────────────────────────────
 export const fetchProductivity = async () => {
+  const uid = await getUserId();
   const { data, error } = await supabase
     .from('productivity')
-    .select('*, blocks(name), teams(name), tasks(element)');
+    .select('*, blocks(name), teams(name), tasks(element)')
+    .eq('user_id', uid);
   if (error) console.error('fetchProductivity error:', error);
   return (data || []).map((p: any) => ({
     ...p,
@@ -390,7 +418,8 @@ export const createProductivity = async (payload: {
   block_id: number; team_id: number; task_id: number | null;
   work_type: string; workers_count: number; quantity_realized: number; date: string;
 }) => {
-  const { data, error } = await supabase.from('productivity').insert(payload).select().single();
+  const uid = await getUserId();
+  const { data, error } = await supabase.from('productivity').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createProductivity error:', error);
   return data;
 };
