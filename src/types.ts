@@ -45,6 +45,10 @@ export interface Slab {
   pose_cable_status: string;
   renforcement_status: string;
   coulage_status: string;
+  ratio?: number;
+  volume_beton?: number;
+  poids_acier?: number;
+  task_id?: number; // Linked task from Planning
 }
 
 export interface Task {
@@ -66,6 +70,7 @@ export interface Task {
   surface?: number;
   team_id?: number;
   team_name?: string;
+  percentage?: number;
 }
 
 export interface ElementType {

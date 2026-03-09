@@ -225,6 +225,19 @@ export const deleteTeam = async (id: number) => {
   if (error) console.error('deleteTeam error:', error);
 };
 
+// ─── STATUS MAPPING ───────────────────────────────────────
+export const mapStatusSuiviToPlanning = (status: string) => {
+  if (status === 'Terminé' || status === 'termine') return 'Terminé';
+  if (status === 'En cours' || status === 'en_cours') return 'En cours';
+  return 'Non commencé';
+};
+
+export const mapStatusPlanningToSuivi = (status: string) => {
+  if (status === 'Terminé' || status === 'termine') return 'termine';
+  if (status === 'En cours' || status === 'en_cours') return 'en_cours';
+  return 'non_commence';
+};
+
 // ─── TASKS ────────────────────────────────────────────────
 export const fetchTasks = async () => {
   const uid = await getActiveProjectOwnerId();
@@ -247,50 +260,9 @@ export const fetchTasks = async () => {
 
 export const createTask = async (payload: any) => {
   const uid = await getActiveProjectOwnerId();
-  let element_id = null;
-  let slab_id = null;
-
-  // Create structural element if type is specified
-  if (payload.element_type === 'Dalle') {
-    let finalBlockId = payload.block_id;
-    let finalFloorId = payload.floor_id;
-
-    if (!finalBlockId || !finalFloorId) {
-      const { data: defaultBlock } = await supabase.from('blocks').select('id').eq('user_id', uid).order('id').limit(1).single();
-      if (defaultBlock) {
-        finalBlockId = finalBlockId || defaultBlock.id;
-        const { data: defaultFloor } = await supabase.from('floors').select('id').eq('block_id', finalBlockId).order('id').limit(1).single();
-        if (defaultFloor) finalFloorId = finalFloorId || defaultFloor.id;
-      }
-    }
-
-    if (finalBlockId && finalFloorId) {
-      const { data: slabData } = await supabase.from('slabs').insert({
-        block_id: finalBlockId,
-        floor_id: finalFloorId,
-        name: payload.element,
-        axes: payload.axes || null,
-        surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
-        start_date: payload.start_date,
-        end_date: payload.end_date,
-        status: payload.status || 'Non commencé',
-        user_id: uid
-      }).select('id').single();
-      slab_id = slabData?.id || null;
-    }
-  } else if (['Poteau', 'Voile', 'Voile périphérique'].includes(payload.element_type)) {
-    const { data: veData } = await supabase.from('vertical_elements').insert({
-      block_id: payload.block_id,
-      floor_id: payload.floor_id,
-      type: payload.element_type,
-      name: payload.element,
-      axes: payload.axes || null,
-      user_id: uid
-    }).select('id').single();
-    element_id = veData?.id || null;
-  }
-
-  const { data, error } = await supabase.from('tasks').insert({
+  
+  // 1. Insert Task first to get its ID
+  const { data: taskData, error: taskError } = await supabase.from('tasks').insert({
     block_id: payload.block_id || null,
     floor_id: payload.floor_id || null,
     element: payload.element || null,
@@ -299,17 +271,78 @@ export const createTask = async (payload: any) => {
     end_date: payload.end_date || null,
     duration: payload.duration || 0,
     status: payload.status || 'Non commencé',
-    element_id: element_id,
     element_type: payload.element_type || null,
-    slab_id: slab_id,
     axes: payload.axes || null,
     surface: payload.surface || 0,
     team_id: payload.team_id || null,
     user_id: uid
   }).select().single();
 
-  if (error) console.error('createTask error:', error);
-  return { ...(data || {}), element_id, slab_id };
+  if (taskError) {
+    console.error('createTask error:', taskError);
+    throw taskError;
+  }
+
+  let element_id = null;
+  let slab_id = null;
+
+  // 2. Create structural element if a type is provided
+  if (payload.element_type) {
+    if (payload.element_type === 'Dalle') {
+      let finalBlockId = payload.block_id;
+      let finalFloorId = payload.floor_id;
+
+      if (!finalBlockId || !finalFloorId) {
+        const { data: defaultBlock } = await supabase.from('blocks').select('id').eq('user_id', uid).order('id').limit(1).single();
+        if (defaultBlock) {
+          finalBlockId = finalBlockId || defaultBlock.id;
+          const { data: defaultFloor } = await supabase.from('floors').select('id').eq('block_id', finalBlockId).order('id').limit(1).single();
+          if (defaultFloor) finalFloorId = finalFloorId || defaultFloor.id;
+        }
+      }
+
+      if (finalBlockId && finalFloorId) {
+        const { data: slabData } = await supabase.from('slabs').insert({
+          block_id: finalBlockId,
+          floor_id: finalFloorId,
+          name: payload.element,
+          axes: payload.axes || null,
+          surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
+          start_date: payload.start_date,
+          end_date: payload.end_date,
+          status: payload.status || 'Non commencé',
+          task_id: taskData.id,
+          user_id: uid
+        }).select('id').single();
+        slab_id = slabData?.id || null;
+      }
+    } else {
+      const { data: veData } = await supabase.from('vertical_elements').insert({
+        block_id: payload.block_id,
+        floor_id: payload.floor_id,
+        type: payload.element_type,
+        name: payload.element,
+        axes: payload.axes || null,
+        coulage_status: mapStatusPlanningToSuivi(payload.status || 'Non commencé'),
+        task_id: taskData.id,
+        user_id: uid
+      }).select('id').single();
+      element_id = veData?.id || null;
+    }
+  }
+
+  // 3. Update task with element_id / slab_id
+  if (element_id || slab_id) {
+    await supabase.from('tasks').update({
+      element_id: element_id,
+      slab_id: slab_id
+    }).eq('id', taskData.id);
+    
+    taskData.element_id = element_id;
+    taskData.slab_id = slab_id;
+  }
+
+  return taskData;
 };
 
 export const updateTask = async (id: number, payload: any) => {
@@ -339,21 +372,23 @@ export const updateTask = async (id: number, payload: any) => {
         axes: payload.axes, surface: payload.surface, start_date: payload.start_date,
         end_date: payload.end_date, status: payload.status
       }).eq('id', task.slab_id);
-    } else if (task.element_id && ['Poteau', 'Voile', 'Voile périphérique'].includes(task.element_type)) {
+    } else if (task.element_id) {
+      // Remove hardcoded typs, support any dynamic type mapped back to Suivi
       await supabase.from('vertical_elements').update({
         block_id: payload.block_id, floor_id: payload.floor_id, name: payload.element,
-        axes: payload.axes, type: payload.element_type
+        axes: payload.axes, type: payload.element_type,
+        coulage_status: payload.status ? mapStatusPlanningToSuivi(payload.status) : undefined
       }).eq('id', task.element_id);
     }
   }
 };
 
 export const deleteTask = async (id: number) => {
-  const { data: task } = await supabase.from('tasks').select('element_id, slab_id, element_type').eq('id', id).single();
+  const { data: task } = await supabase.from('tasks').select('element_id, slab_id').eq('id', id).single();
   if (task) {
     if (task.slab_id) {
       await supabase.from('slabs').delete().eq('id', task.slab_id);
-    } else if (task.element_id && ['Poteau', 'Voile', 'Voile périphérique'].includes(task.element_type)) {
+    } else if (task.element_id) {
       await supabase.from('vertical_elements').delete().eq('id', task.element_id);
     }
   }
@@ -362,6 +397,15 @@ export const deleteTask = async (id: number) => {
 };
 
 export const bulkDeleteTasks = async (ids: number[]) => {
+  const { data: tasks } = await supabase.from('tasks').select('element_id, slab_id').in('id', ids);
+  if (tasks) {
+    const slabIds = tasks.map(t => t.slab_id).filter(Boolean) as number[];
+    const elementIds = tasks.map(t => t.element_id).filter(Boolean) as number[];
+    
+    if (slabIds.length > 0) await supabase.from('slabs').delete().in('id', slabIds);
+    if (elementIds.length > 0) await supabase.from('vertical_elements').delete().in('id', elementIds);
+  }
+  
   const { error } = await supabase.from('tasks').delete().in('id', ids);
   if (error) console.error('bulkDeleteTasks error:', error);
 };
@@ -393,7 +437,11 @@ export const createVerticalElement = async (payload: any) => {
     axes: payload.axes || null,
     user_id: uid
   }).select('id').single();
-  if (error) console.error('createVerticalElement error:', error);
+  
+  if (error) {
+    console.error('createVerticalElement error:', error);
+    return;
+  }
   const elementId = veData?.id;
 
   // Auto-create planning task
@@ -401,23 +449,34 @@ export const createVerticalElement = async (payload: any) => {
   const endDate = payload.end_date || new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0];
   const duration = Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)));
 
-  await supabase.from('tasks').insert({
+  const { data: taskData, error: taskError } = await supabase.from('tasks').insert({
     block_id: payload.block_id, floor_id: payload.floor_id,
     element: payload.name, description: payload.name,
     start_date: startDate, end_date: endDate, duration,
     status: 'Non commencé', element_id: elementId,
     element_type: payload.type, axes: payload.axes,
     user_id: uid
-  });
+  }).select('id').single();
+
+  if (taskError) {
+    console.error('createVerticalElement auto-task error:', taskError);
+  } else if (taskData) {
+    // Link back to the element
+    await supabase.from('vertical_elements').update({ task_id: taskData.id }).eq('id', elementId);
+  }
 
   return elementId;
 };
 
 export const deleteVerticalElement = async (id: number) => {
+  const { data: element } = await supabase.from('vertical_elements').select('task_id').eq('id', id).single();
   const { error: delError } = await supabase.from('vertical_elements').delete().eq('id', id);
   if (delError) console.error('deleteVerticalElement error:', delError);
-  const { error: taskError } = await supabase.from('tasks').delete().eq('element_id', id);
-  if (taskError) console.error('deleteVerticalElement task cleanup error:', taskError);
+  
+  if (element?.task_id) {
+    const { error: taskError } = await supabase.from('tasks').delete().eq('id', element.task_id);
+    if (taskError) console.error('deleteVerticalElement task cleanup error:', taskError);
+  }
 };
 
 export const updateVerticalElementStatus = async (id: number, field: string, newStatus: string) => {
@@ -425,17 +484,31 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
     .from('vertical_elements')
     .update({ [field]: newStatus })
     .eq('id', id)
-    .select();
+    .select('task_id, ferraillage_status, coffrage_status, coulage_status')
+    .single();
   
   if (error) {
     console.error('updateVerticalElementStatus error:', error);
     return;
   }
 
-  if (field === 'coulage_status' && newStatus === 'Terminé') {
-    await supabase.from('tasks').update({ status: 'Terminé' }).eq('element_id', id);
-  } else if (newStatus === 'En cours') {
-    await supabase.from('tasks').update({ status: 'En cours' }).eq('element_id', id);
+  if (data?.task_id) {
+    let planningStatus = 'Non commencé';
+    
+    // Si coulage terminé -> tout est terminé
+    if (data.coulage_status === 'Terminé' || newStatus === 'Terminé') {
+      planningStatus = 'Terminé';
+    } 
+    // Sinon si au moins une étape est commencée
+    else if (
+      (data.ferraillage_status && data.ferraillage_status !== 'Non commencé') || 
+      (data.coffrage_status && data.coffrage_status !== 'Non commencé') || 
+      (data.coulage_status && data.coulage_status !== 'Non commencé')
+    ) {
+      planningStatus = 'En cours';
+    }
+
+    await supabase.from('tasks').update({ status: planningStatus }).eq('id', data.task_id);
   }
 };
 
@@ -469,7 +542,11 @@ export const createSlab = async (payload: any) => {
     status: 'Non commencé',
     user_id: uid
   }).select('id').single();
-  if (error) console.error('createSlab error:', error);
+  
+  if (error) {
+    console.error('createSlab error:', error);
+    return;
+  }
   const slabId = slabData?.id;
 
   // Auto-create planning task
@@ -477,7 +554,7 @@ export const createSlab = async (payload: any) => {
   const endDate = payload.end_date || new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0];
   const duration = Math.max(1, Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)));
 
-  await supabase.from('tasks').insert({
+  const { data: taskData, error: taskError } = await supabase.from('tasks').insert({
     block_id: payload.block_id, floor_id: payload.floor_id,
     element: payload.name, description: payload.name,
     start_date: startDate, end_date: endDate, duration,
@@ -485,27 +562,65 @@ export const createSlab = async (payload: any) => {
     slab_id: slabId, axes: payload.axes,
     surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
     user_id: uid
-  });
+  }).select('id').single();
+
+  if (taskError) {
+    console.error('createSlab auto-task error:', taskError);
+  } else if (taskData) {
+    await supabase.from('slabs').update({ task_id: taskData.id }).eq('id', slabId);
+  }
 
   return slabId;
 };
 
 export const updateSlabStatus = async (id: number, field: string, newStatus: string) => {
-  await supabase.from('slabs').update({ [field]: newStatus }).eq('id', id);
+  const { data, error } = await supabase
+    .from('slabs')
+    .update({ [field]: newStatus })
+    .eq('id', id)
+    .select('task_id, status, coffrage_status, ferraillage_inf_status, pose_gaine_status, pose_cable_status, renforcement_status, coulage_status')
+    .single();
 
-  if (field === 'coulage_status' && newStatus === 'Terminé') {
-    await supabase.from('tasks').update({ status: 'Terminé' }).eq('slab_id', id);
-    await supabase.from('slabs').update({ status: 'Terminé' }).eq('id', id);
-  } else if (newStatus === 'En cours') {
-    await supabase.from('tasks').update({ status: 'En cours' }).eq('slab_id', id);
-    await supabase.from('slabs').update({ status: 'En cours' }).eq('id', id);
+  if (error) {
+    console.error('updateSlabStatus error:', error);
+    return;
+  }
+
+  if (data?.task_id) {
+    let planningStatus = 'Non commencé';
+    
+    // Si la dalle globale est marquée comme terminée, ou si son dernier état coulage est terminé
+    if (data.status === 'Terminé' || data.coulage_status === 'Terminé' || newStatus === 'Terminé') {
+      planningStatus = 'Terminé';
+    } else if (
+      data.status === 'En cours' ||
+      (data.coffrage_status && data.coffrage_status !== 'Non commencé') || 
+      (data.ferraillage_inf_status && data.ferraillage_inf_status !== 'Non commencé') ||
+      (data.pose_gaine_status && data.pose_gaine_status !== 'Non commencé') ||
+      (data.pose_cable_status && data.pose_cable_status !== 'Non commencé') ||
+      (data.renforcement_status && data.renforcement_status !== 'Non commencé') ||
+      (data.coulage_status && data.coulage_status !== 'Non commencé')
+    ) {
+      planningStatus = 'En cours';
+    }
+
+    await supabase.from('tasks').update({ status: planningStatus }).eq('id', data.task_id);
+    
+    // Synchro du `status` natif de la dalle selon progression
+    if (data.status !== planningStatus && field !== 'status') {
+      await supabase.from('slabs').update({ status: planningStatus }).eq('id', id);
+    }
   }
 };
 
 export const deleteSlab = async (id: number) => {
-  await supabase.from('tasks').delete().eq('slab_id', id);
+  const { data: slab } = await supabase.from('slabs').select('task_id').eq('id', id).single();
   const { error } = await supabase.from('slabs').delete().eq('id', id);
   if (error) console.error('deleteSlab error:', error);
+  
+  if (slab?.task_id) {
+    await supabase.from('tasks').delete().eq('id', slab.task_id);
+  }
 };
 
 export const updateSlab = async (id: number, payload: any) => {
