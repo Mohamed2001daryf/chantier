@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle2, Loader2, Mail, Shield, Users, UserPlus, Crown, Eye, Calendar, Construction, X, Copy, Share2, MessageCircle, Link } from 'lucide-react';
+import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle2, Loader2, Mail, Shield, Users, UserPlus, Crown, Eye, Calendar, Construction, X, Copy, Share2, MessageCircle, Link, Layers, Box, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../auth/AuthProvider';
 import { motion } from 'motion/react';
-import { fetchProjectMembers, inviteProjectMember, removeProjectMember, updateMemberRole } from '../lib/supabaseService';
+import { fetchProjectMembers, inviteProjectMember, removeProjectMember, updateMemberRole, fetchElementTypes, createElementType, deleteElementType } from '../lib/supabaseService';
+import { ElementType } from '../types';
 
 const ROLES = [
   { value: 'admin', label: 'Admin', icon: Crown, desc: 'Accès complet (créer, modifier, supprimer)', color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
@@ -30,17 +31,28 @@ export default function Settings() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [shareModal, setShareModal] = useState<{ email: string; role: string } | null>(null);
 
+  // Element Types management
+  const [elementTypes, setElementTypes] = useState<ElementType[]>([]);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [typeLoading, setTypeLoading] = useState(false);
+
   useEffect(() => {
     if (user) {
       setFullName(user.user_metadata?.full_name || '');
       setEmail(user.email || '');
       loadMembers();
+      loadElementTypes();
     }
   }, [user]);
 
   const loadMembers = async () => {
     const data = await fetchProjectMembers();
     setMembers(data);
+  };
+
+  const loadElementTypes = async () => {
+    const data = await fetchElementTypes();
+    setElementTypes(data);
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {
@@ -208,34 +220,33 @@ export default function Settings() {
         <div className="p-6 space-y-6">
           {/* Invite form - only visible to admins */}
           {role === 'admin' ? (
-            <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="p-6 bg-gray-50 border-t border-gray-100 mt-4 rounded-b-2xl">
+              <form onSubmit={handleInvite} className="flex gap-3">
                 <input
                   type="email"
                   value={inviteEmail}
                   onChange={e => setInviteEmail(e.target.value)}
-                  placeholder="Email du collaborateur"
+                  placeholder="Email du collaborateur..."
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF851B] outline-none"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm"
                 />
-              </div>
-              <select
-                value={inviteRole}
-                onChange={e => setInviteRole(e.target.value)}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm font-medium"
-              >
-                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-              </select>
-              <button
-                type="submit"
-                disabled={inviteLoading}
-                className="bg-[#001F3F] hover:bg-[#003366] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-60 text-sm shrink-0"
-              >
-                {inviteLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-                Inviter
-              </button>
-            </form>
+                <select
+                  value={inviteRole}
+                  onChange={e => setInviteRole(e.target.value)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none bg-white font-medium"
+                >
+                  {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+                <button
+                  type="submit"
+                  disabled={inviteLoading}
+                  className="bg-[#001F3F] hover:bg-[#003366] text-white px-5 py-2 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-60 text-sm shrink-0"
+                >
+                  {inviteLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                  Inviter
+                </button>
+              </form>
+            </div>
           ) : (
             <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-500 text-center">
               Seuls les administrateurs peuvent inviter de nouveaux membres.

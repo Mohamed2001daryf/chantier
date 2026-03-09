@@ -3,7 +3,7 @@ import { Plus, Search, Filter, CheckCircle2, Circle, Loader2, Edit3, X, Users } 
 import { Block, Floor, VerticalElement, Team, Task } from '../types';
 import { ELEMENT_TYPES, STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
-import { fetchVerticalElements as loadElements, fetchBlocks as loadBlocks, fetchFloors as loadFloors, fetchTeams as loadTeams, fetchTasks as loadTasks, createVerticalElement, deleteVerticalElement, updateVerticalElementStatus } from '../lib/supabaseService';
+import { fetchVerticalElements as loadElements, fetchBlocks as loadBlocks, fetchFloors as loadFloors, fetchTeams as loadTeams, fetchTasks as loadTasks, createVerticalElement, deleteVerticalElement, updateVerticalElementStatus, fetchElementTypes, createElementType } from '../lib/supabaseService';
 import { useAuth } from '../auth/AuthProvider';
 
 export default function SuiviTravaux() {
@@ -13,11 +13,18 @@ export default function SuiviTravaux() {
   const [floors, setFloors] = useState<Floor[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [elementTypes, setElementTypes] = useState<{id: number, name: string}[]>([]);
+  
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Inline Element Type Creation state
+  const [isCreatingType, setIsCreatingType] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+  const [typeLoading, setTypeLoading] = useState(false);
   const [formData, setFormData] = useState({ 
     block_id: '', 
     floor_id: '', 
-    type: ELEMENT_TYPES[0], 
+    type: '', 
     name: '', 
     axes: '',
     start_date: new Date().toISOString().split('T')[0],
@@ -33,7 +40,16 @@ export default function SuiviTravaux() {
     fetchFloors();
     fetchTeams();
     fetchTasks();
+    loadTypes();
   }, []);
+
+  const loadTypes = async () => {
+    const types = await fetchElementTypes();
+    setElementTypes(types);
+    if (types.length > 0 && !formData.type) {
+      setFormData(prev => ({ ...prev, type: types[0].name }));
+    }
+  };
 
   const fetchElements = async () => { setElements(await loadElements()); };
   const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
@@ -45,6 +61,23 @@ export default function SuiviTravaux() {
     if (confirm('Voulez-vous vraiment supprimer cet élément ? Cela supprimera également la tâche de planning associée.')) {
       await deleteVerticalElement(id);
       await fetchElements();
+    }
+  };
+
+  const handleCreateInlineType = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!newTypeName.trim()) return;
+    setTypeLoading(true);
+    try {
+      const newType = await createElementType(newTypeName);
+      setElementTypes(prev => [...prev, newType]);
+      setFormData(prev => ({ ...prev, type: newType.name }));
+      setIsCreatingType(false);
+      setNewTypeName('');
+    } catch (err: any) {
+      alert(err.message || "Erreur lors de la création du type");
+    } finally {
+      setTypeLoading(false);
     }
   };
 
@@ -228,10 +261,51 @@ export default function SuiviTravaux() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Type</label>
-                <select required value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value as any })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none">
-                  {ELEMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Type d'élément</label>
+                {isCreatingType ? (
+                  <div className="flex gap-2 items-center">
+                    <input 
+                      type="text" 
+                      value={newTypeName}
+                      onChange={e => setNewTypeName(e.target.value)}
+                      placeholder="Nom du nouveau type..."
+                      autoFocus
+                      className="flex-1 px-4 py-2 rounded-xl border border-[#FF851B] focus:ring-2 focus:ring-[#FF851B] outline-none"
+                    />
+                    <button 
+                      onClick={handleCreateInlineType} 
+                      disabled={typeLoading || !newTypeName.trim()}
+                      className="bg-[#001F3F] text-white p-2 rounded-xl disabled:opacity-50"
+                    >
+                      {typeLoading ? <Loader2 size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
+                    </button>
+                    <button 
+                      onClick={(e) => { e.preventDefault(); setIsCreatingType(false); setNewTypeName(''); setFormData(prev => ({ ...prev, type: elementTypes[0]?.name || '' })); }} 
+                      className="bg-gray-100 text-gray-600 p-2 rounded-xl hover:bg-gray-200"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                ) : (
+                  <select 
+                    value={formData.type} 
+                    onChange={e => {
+                      if (e.target.value === 'NEW_TYPE') {
+                        setIsCreatingType(true);
+                      } else {
+                        setFormData({ ...formData, type: e.target.value });
+                      }
+                    }} 
+                    className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none"
+                  >
+                    {elementTypes.map(t => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                    {role === 'admin' && (
+                      <option value="NEW_TYPE" className="font-bold text-[#FF851B] italic">+ Ajouter un type...</option>
+                    )}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Axes</label>

@@ -6,7 +6,6 @@ const getUserId = async (): Promise<string> => {
   if (!user) throw new Error('Non authentifié');
   return user.id;
 };
-
 // Get the effective project owner ID (for members viewing a shared project)
 export const getActiveProjectOwnerId = async (): Promise<string> => {
   const uid = await getUserId();
@@ -112,6 +111,41 @@ export const fetchBlocks = async () => {
   const { data, error } = await supabase.from('blocks').select('*').eq('user_id', uid);
   if (error) console.error('fetchBlocks error:', error);
   return data || [];
+};
+
+// ─── ELEMENT TYPES ──────────────────────────────────────────
+export const fetchElementTypes = async () => {
+  const ownerId = await getActiveProjectOwnerId();
+  const { data, error } = await supabase
+    .from('element_types')
+    .select('*')
+    .eq('user_id', ownerId)
+    .order('name');
+  if (error) console.error('fetchElementTypes error:', error);
+  return data || [];
+};
+
+export const createElementType = async (name: string) => {
+  const uid = await getUserId();
+  const { data, error } = await supabase
+    .from('element_types')
+    .insert({ user_id: uid, name: name.trim() })
+    .select()
+    .single();
+  if (error) {
+    if (error.code === '23505') throw new Error('Ce type existe déjà.');
+    console.error('createElementType error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const deleteElementType = async (id: number) => {
+  const { error } = await supabase.from('element_types').delete().eq('id', id);
+  if (error) {
+    console.error('deleteElementType error:', error);
+    throw error;
+  }
 };
 
 export const createBlock = async (payload: { name: string; zone: string; description: string }) => {
