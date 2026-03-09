@@ -253,36 +253,47 @@ export default function Dashboard() {
           };
         });
 
-      // Floor Progress
-      const requiredElements = ['Plancher haut', 'Poteaux', 'Voiles intérieurs', 'Voiles périphériques', 'Radier', 'RSD', 'Terrassement'];
-      
+      // Floor Progress (Dynamic Types)
       const progressByFloor = allFloors.map(floor => {
-        const floorTasks = allTasks.filter(t => t.floor_id === floor.id);
+        const floorVerticalElements = (verticalElements || []).filter(e => e.floor_id === floor.id);
+        const floorSlabs = (slabs || []).filter(s => s.floor_id === floor.id);
         
-        const elementsProgress = requiredElements.map(type => {
-          // Find all tasks on this floor that match the element type
-          // Note: Depending on how data is entered, we might need to check 'element_type' or 'element' name
-          // We'll check both for robustness, prioritizing element_type
-          const typeTasks = floorTasks.filter(t => 
-            (t.element_type && t.element_type.toLowerCase().includes(type.toLowerCase())) ||
-            (t.element && t.element.toLowerCase().includes(type.toLowerCase()))
-          );
-          
-          const doneCount = typeTasks.filter(t => t.status === 'Terminé').length;
-          const totalCount = typeTasks.length;
-          
-          return {
-            type,
-            progress: totalCount > 0 ? (doneCount / totalCount) * 100 : 0
-          };
+        const typeMap = new Map<string, { done: number; total: number }>();
+        
+        // Process vertical elements
+        floorVerticalElements.forEach(element => {
+          if (!element.type) return;
+          const type = element.type;
+          const prev = typeMap.get(type) || { done: 0, total: 0 };
+          prev.total += 1;
+          if (element.coulage_status === 'Terminé' || element.coulage_status === 'termine') {
+            prev.done += 1;
+          }
+          typeMap.set(type, prev);
         });
+
+        // Process slabs
+        if (floorSlabs.length > 0) {
+          const type = 'Dalles';
+          const prev = typeMap.get(type) || { done: 0, total: 0 };
+          prev.total += floorSlabs.length;
+          prev.done += floorSlabs.filter(s => s.status === 'Terminé' || s.status === 'termine').length;
+          typeMap.set(type, prev);
+        }
+
+        // Convert map to array and compute percentages
+        const elementsProgress = Array.from(typeMap.entries()).map(([type, counts]) => ({
+          type,
+          progress: counts.total > 0 ? (counts.done / counts.total) * 100 : 0
+        }));
 
         return {
           floorName: floor.name,
           order_number: floor.order_number || 0,
           elements: elementsProgress
         };
-      }).sort((a, b) => a.order_number - b.order_number); // Sort by order_number ascending or descending as needed
+      }).filter(floor => floor.elements.length > 0) // Only show floors that have at least one element
+      .sort((a, b) => a.order_number - b.order_number);
 
       setStats({
         globalProgress,
