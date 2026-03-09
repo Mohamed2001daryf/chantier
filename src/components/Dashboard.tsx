@@ -11,6 +11,7 @@ import { DashboardStats } from '../types';
 import { motion } from 'motion/react';
 import { cn } from '../utils';
 import { supabase } from '../lib/supabase';
+import { getActiveProjectOwnerId } from '../lib/supabaseService';
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -22,12 +23,11 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      const uid = user?.id;
+      // Get the correct user_id to fetch (either the user's own, or the project owner's if they are a member)
+      const uid = await getActiveProjectOwnerId();
       if (!uid) return;
 
-      // Fetch all required data in parallel from Supabase, filtered by user
+      // Fetch all required data in parallel from Supabase, filtered by the active project owner's ID
       const [
         { data: tasks },
         { data: blocks },

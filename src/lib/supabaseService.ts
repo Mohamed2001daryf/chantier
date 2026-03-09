@@ -108,14 +108,14 @@ export const acceptPendingInvitations = async () => {
 
 // ─── BLOCKS ───────────────────────────────────────────────
 export const fetchBlocks = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase.from('blocks').select('*').eq('user_id', uid);
   if (error) console.error('fetchBlocks error:', error);
   return data || [];
 };
 
 export const createBlock = async (payload: { name: string; zone: string; description: string }) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase.from('blocks').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createBlock error:', error);
   return data;
@@ -133,7 +133,7 @@ export const deleteBlock = async (id: number) => {
 
 // ─── FLOORS ───────────────────────────────────────────────
 export const fetchFloors = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('floors')
     .select('*, blocks(name)')
@@ -148,7 +148,7 @@ export const fetchFloors = async () => {
 };
 
 export const createFloor = async (payload: { block_id: number; name: string; order_number: number }) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase.from('floors').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createFloor error:', error);
   return data;
@@ -161,7 +161,7 @@ export const deleteFloor = async (id: number) => {
 
 // ─── TEAMS ────────────────────────────────────────────────
 export const fetchTeams = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('teams')
     .select('*, blocks(name)')
@@ -175,7 +175,7 @@ export const fetchTeams = async () => {
 };
 
 export const createTeam = async (payload: { name: string; speciality: string; block_id: number | null; workers: number }) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase.from('teams').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createTeam error:', error);
   return data;
@@ -193,7 +193,7 @@ export const deleteTeam = async (id: number) => {
 
 // ─── TASKS ────────────────────────────────────────────────
 export const fetchTasks = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('tasks')
     .select('*, blocks(name), floors(name), teams(name)')
@@ -212,7 +212,7 @@ export const fetchTasks = async () => {
 };
 
 export const createTask = async (payload: any) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   let element_id = null;
   let slab_id = null;
 
@@ -334,7 +334,7 @@ export const bulkDeleteTasks = async (ids: number[]) => {
 
 // ─── VERTICAL ELEMENTS ───────────────────────────────────
 export const fetchVerticalElements = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('vertical_elements')
     .select('*, blocks(name), floors(name)')
@@ -350,7 +350,7 @@ export const fetchVerticalElements = async () => {
 };
 
 export const createVerticalElement = async (payload: any) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data: veData, error } = await supabase.from('vertical_elements').insert({
     block_id: payload.block_id || null,
     floor_id: payload.floor_id || null,
@@ -407,7 +407,7 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
 
 // ─── SLABS ────────────────────────────────────────────────
 export const fetchSlabs = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('slabs')
     .select('*, blocks(name), floors(name)')
@@ -423,7 +423,7 @@ export const fetchSlabs = async () => {
 };
 
 export const createSlab = async (payload: any) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data: slabData, error } = await supabase.from('slabs').insert({
     block_id: payload.block_id || null,
     floor_id: payload.floor_id || null,
@@ -496,7 +496,7 @@ export const updateSlab = async (id: number, payload: any) => {
 
 // ─── PRODUCTIVITY ─────────────────────────────────────────
 export const fetchProductivity = async () => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase
     .from('productivity')
     .select('*, blocks(name), teams(name), tasks(element)')
@@ -517,7 +517,7 @@ export const createProductivity = async (payload: {
   block_id: number; team_id: number; task_id: number | null;
   work_type: string; workers_count: number; quantity_realized: number; date: string;
 }) => {
-  const uid = await getUserId();
+  const uid = await getActiveProjectOwnerId();
   const { data, error } = await supabase.from('productivity').insert({ ...payload, user_id: uid }).select().single();
   if (error) console.error('createProductivity error:', error);
   return data;
