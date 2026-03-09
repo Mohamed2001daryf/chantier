@@ -23,6 +23,7 @@ export default function SuiviTravaux() {
   });
   const [filterBlock, setFilterBlock] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchElements();
@@ -76,6 +77,13 @@ export default function SuiviTravaux() {
     : null;
 
   let filteredElements = elements;
+  if (searchQuery.trim()) {
+    filteredElements = filteredElements.filter(e => 
+      e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      e.axes?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }
   if (filterBlock) {
     filteredElements = filteredElements.filter(e => e.block_id === parseInt(filterBlock));
   }
@@ -102,7 +110,7 @@ export default function SuiviTravaux() {
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
         <div className="flex-1 min-w-[200px] relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input type="text" placeholder="Rechercher un élément..." className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B]" />
+          <input type="text" placeholder="Rechercher un élément..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B]" />
         </div>
         <select 
           value={filterBlock}
