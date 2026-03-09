@@ -22,7 +22,12 @@ export default function Dashboard() {
 
   const loadDashboardData = async () => {
     try {
-      // Fetch all required data in parallel from Supabase
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user?.id;
+      if (!uid) return;
+
+      // Fetch all required data in parallel from Supabase, filtered by user
       const [
         { data: tasks },
         { data: blocks },
@@ -30,11 +35,11 @@ export default function Dashboard() {
         { data: verticalElements },
         { data: slabs }
       ] = await Promise.all([
-        supabase.from('tasks').select('*'),
-        supabase.from('blocks').select('*'),
-        supabase.from('teams').select('*, blocks(name)'),
-        supabase.from('vertical_elements').select('id'),
-        supabase.from('slabs').select('id')
+        supabase.from('tasks').select('*').eq('user_id', uid),
+        supabase.from('blocks').select('*').eq('user_id', uid),
+        supabase.from('teams').select('*, blocks(name)').eq('user_id', uid),
+        supabase.from('vertical_elements').select('id').eq('user_id', uid),
+        supabase.from('slabs').select('id').eq('user_id', uid)
       ]);
 
       const allTasks = tasks || [];
