@@ -4,8 +4,10 @@ import { Block, Floor, Slab } from '../types';
 import { STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
 import { fetchSlabs as loadSlabs, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createSlab, updateSlabStatus, deleteSlab, updateSlab } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function DallesPostTension() {
+  const { role } = useAuth();
   const [slabs, setSlabs] = useState<Slab[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -88,6 +90,7 @@ export default function DallesPostTension() {
   };
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
+    if (role === 'lecture') return;
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
     await updateSlabStatus(id, field, nextStatus);
     await fetchSlabs();
@@ -109,13 +112,15 @@ export default function DallesPostTension() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Dalles Post-Tension</h2>
           <p className="text-gray-500 text-sm sm:text-base">Suivi des étapes spécifiques aux dalles PT.</p>
         </div>
-        <button 
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
-        >
-          <Plus size={18} />
-          Ajouter une Dalle
-        </button>
+        {role !== 'lecture' && (
+          <button 
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
+            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Ajouter une Dalle
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
@@ -159,20 +164,24 @@ export default function DallesPostTension() {
                     {Math.round((STAGES.filter(s => (slab as any)[s.key] === 'Terminé').length / STAGES.length) * 100)}%
                   </p>
                 </div>
-                <button 
-                  onClick={() => handleEdit(slab)}
-                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
-                  title="Modifier la dalle"
-                >
-                  <Pencil size={18} />
-                </button>
-                <button 
-                  onClick={() => handleDelete(slab.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                  title="Supprimer la dalle"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {role !== 'lecture' && (
+                  <>
+                    <button 
+                      onClick={() => handleEdit(slab)}
+                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                      title="Modifier la dalle"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(slab.id)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                      title="Supprimer la dalle"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -183,6 +192,7 @@ export default function DallesPostTension() {
                   label={stage.label} 
                   status={(slab as any)[stage.key]} 
                   onClick={() => updateStatus(slab.id, stage.key, (slab as any)[stage.key])} 
+                  role={role}
                 />
               ))}
             </div>
@@ -258,7 +268,7 @@ export default function DallesPostTension() {
   );
 }
 
-function StatusBadge({ label, status, onClick }: { label: string, status: string, onClick: () => void, key?: string }) {
+function StatusBadge({ label, status, onClick, role }: { label: string, status: string, onClick: () => void, key?: string, role: string }) {
   const getStatusStyles = () => {
     switch (status) {
       case 'Terminé': return 'bg-green-100 text-green-700 border-green-200';
@@ -272,10 +282,13 @@ function StatusBadge({ label, status, onClick }: { label: string, status: string
   return (
     <button 
       onClick={onClick}
+      disabled={role === 'lecture'}
       className={cn(
-        "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all active:scale-95 gap-1",
+        "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1",
+        role !== 'lecture' ? "active:scale-95 hover:border-gray-300" : "cursor-default opacity-80",
         getStatusStyles()
       )}
+      title={role === 'lecture' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
     >
       <Icon size={18} className={cn(status === 'En cours' && "animate-spin")} />
       <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{label}</span>

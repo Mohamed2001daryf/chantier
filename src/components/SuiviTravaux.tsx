@@ -4,8 +4,10 @@ import { Block, Floor, VerticalElement, Team, Task } from '../types';
 import { ELEMENT_TYPES, STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
 import { fetchVerticalElements as loadElements, fetchBlocks as loadBlocks, fetchFloors as loadFloors, fetchTeams as loadTeams, fetchTasks as loadTasks, createVerticalElement, deleteVerticalElement, updateVerticalElementStatus } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function SuiviTravaux() {
+  const { role } = useAuth();
   const [elements, setElements] = useState<VerticalElement[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -58,6 +60,7 @@ export default function SuiviTravaux() {
   };
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
+    if (role === 'lecture') return;
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
     await updateVerticalElementStatus(id, field, nextStatus);
     await fetchElements();
@@ -160,25 +163,30 @@ export default function SuiviTravaux() {
                   label="Ferraillage" 
                   status={el.ferraillage_status} 
                   onClick={() => updateStatus(el.id, 'ferraillage_status', el.ferraillage_status)} 
+                  role={role}
                 />
                 <StatusBadge 
                   label="Coffrage" 
                   status={el.coffrage_status} 
                   onClick={() => updateStatus(el.id, 'coffrage_status', el.coffrage_status)} 
+                  role={role}
                 />
                 <StatusBadge 
                   label="Coulage" 
                   status={el.coulage_status} 
                   onClick={() => updateStatus(el.id, 'coulage_status', el.coulage_status)} 
+                  role={role}
                 />
               </div>
-              <button 
-                onClick={() => handleDelete(el.id)}
-                className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-                title="Supprimer l'élément"
-              >
-                <X size={20} />
-              </button>
+              {role !== 'lecture' && (
+                <button 
+                  onClick={() => handleDelete(el.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                  title="Supprimer l'élément"
+                >
+                  <X size={20} />
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -247,7 +255,7 @@ export default function SuiviTravaux() {
   );
 }
 
-function StatusBadge({ label, status, onClick }: { label: string, status: string, onClick: () => void }) {
+function StatusBadge({ label, status, onClick, role }: { label: string, status: string, onClick: () => void, role: string }) {
   const getStatusStyles = () => {
     switch (status) {
       case 'Terminé': return 'bg-green-100 text-green-700 border-green-200';
@@ -261,10 +269,13 @@ function StatusBadge({ label, status, onClick }: { label: string, status: string
   return (
     <button 
       onClick={onClick}
+      disabled={role === 'lecture'}
       className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95",
+        "flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all",
+        role !== 'lecture' ? "active:scale-95" : "cursor-default opacity-80",
         getStatusStyles()
       )}
+      title={role === 'lecture' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
     >
       <Icon size={14} className={cn(status === 'En cours' && "animate-spin")} />
       <div className="flex flex-col items-start">

@@ -3,8 +3,10 @@ import { Plus, Trash2, ArrowUpDown, Layers, X, Save } from 'lucide-react';
 import { Block, Floor } from '../types';
 import { motion } from 'motion/react';
 import { fetchBlocks as loadBlocks, fetchFloors as loadFloors, createFloor, deleteFloor as removeFloor } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function GestionEtages() {
+  const { role } = useAuth();
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,13 +50,15 @@ export default function GestionEtages() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Gestion des Étages</h2>
           <p className="text-gray-500 text-sm sm:text-base">Définissez la structure verticale de chaque bloc.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
-        >
-          <Plus size={18} />
-          Ajouter un Étage
-        </button>
+        {role !== 'lecture' && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Ajouter un Étage
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -77,12 +81,14 @@ export default function GestionEtages() {
                       </div>
                       <span className="font-bold text-[#001F3F]">{floor.name}</span>
                     </div>
-                    <button 
-                      onClick={() => handleDelete(floor.id)}
-                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {role !== 'lecture' && (
+                      <button 
+                        onClick={() => handleDelete(floor.id)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>

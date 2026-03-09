@@ -3,8 +3,10 @@ import { Plus, Users, Briefcase, Box, Trash2, X, Save, Pencil } from 'lucide-rea
 import { Block, Team } from '../types';
 import { motion } from 'motion/react';
 import { fetchTeams as loadTeams, fetchBlocks as loadBlocks, createTeam, updateTeam, deleteTeam as removeTeam } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function Equipes() {
+  const { role } = useAuth();
   const [teams, setTeams] = useState<Team[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -84,13 +86,15 @@ export default function Equipes() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Gestion des Équipes</h2>
           <p className="text-gray-500 text-sm sm:text-base">Gérez les effectifs et les spécialités par bloc.</p>
         </div>
-        <button 
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
-        >
-          <Plus size={18} />
-          Ajouter une Équipe
-        </button>
+        {role !== 'lecture' && (
+          <button 
+            onClick={() => { resetForm(); setIsModalOpen(true); }}
+            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Ajouter une Équipe
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -118,22 +122,24 @@ export default function Equipes() {
                 <Box size={14} />
                 Affectation: <span className="text-[#001F3F]">{team.block_name || 'Non affecté'}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openEditModal(team)}
-                  className="text-gray-400 hover:text-[#FF851B] transition-colors p-1"
-                  title="Modifier"
-                >
-                  <Pencil size={16} />
-                </button>
-                <button
-                  onClick={() => { setSelectedTeam(team); setIsDeleteConfirmOpen(true); }}
-                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                  title="Supprimer"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+              {role !== 'lecture' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => openEditModal(team)}
+                    className="text-gray-400 hover:text-[#FF851B] transition-colors p-1"
+                    title="Modifier"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => { setSelectedTeam(team); setIsDeleteConfirmOpen(true); }}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

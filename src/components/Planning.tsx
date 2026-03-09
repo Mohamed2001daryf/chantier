@@ -7,6 +7,7 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, 
 import { fr } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
 import { fetchTasks as loadTasks, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createTask as svcCreateTask, updateTask as svcUpdateTask, deleteTask as svcDeleteTask, bulkDeleteTasks as svcBulkDeleteTasks } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 // Aliases for automatic column detection (lowercase)
 const COLUMN_ALIASES: Record<string, string[]> = {
@@ -68,6 +69,7 @@ function detectColumnMapping(headers: string[]): Record<string, string> {
 type ImportStatus = 'idle' | 'preview' | 'importing' | 'success' | 'error';
 
 export default function Planning() {
+  const { role } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
@@ -404,7 +406,7 @@ export default function Planning() {
           <p className="text-gray-500 text-sm sm:text-base">Gérez le calendrier des travaux et importez vos plannings MS Project / Excel.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {selectedIds.length > 0 && (
+          {selectedIds.length > 0 && role !== 'lecture' && (
             <button 
               onClick={() => setIsBulkDeleteConfirmOpen(true)}
               className="bg-red-50 border border-red-200 text-red-600 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition-all text-sm"
@@ -413,14 +415,18 @@ export default function Planning() {
               Supprimer ({selectedIds.length})
             </button>
           )}
-          <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.csv,.xml" />
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-white border border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all text-sm"
-          >
-            <Upload size={16} />
-            Importer
-          </button>
+          {role !== 'lecture' && (
+            <>
+              <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.csv,.xml" />
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-white border border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all text-sm"
+              >
+                <Upload size={16} />
+                Importer
+              </button>
+            </>
+          )}
           <button 
             onClick={handleExport}
             className="bg-white border border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all text-sm"
@@ -428,13 +434,15 @@ export default function Planning() {
             <Download size={16} />
             Exporter
           </button>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
-          >
-            <Plus size={18} />
-            Nouvelle Tâche
-          </button>
+          {role !== 'lecture' && (
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
+            >
+              <Plus size={18} />
+              Nouvelle Tâche
+            </button>
+          )}
         </div>
       </div>
 
@@ -486,12 +494,14 @@ export default function Planning() {
             {/* Header */}
             <div className="flex border-b border-gray-100">
               <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white z-[11] flex items-center justify-center">
-                <input 
-                  type="checkbox" 
-                  checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length}
-                  onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
-                />
+                {role !== 'lecture' && (
+                  <input 
+                    type="checkbox" 
+                    checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
+                  />
+                )}
               </div>
               <div className="w-64 p-4 font-bold text-xs uppercase text-gray-400 border-r border-gray-100 sticky left-12 bg-white z-10">Tâche / Élément</div>
               <div className="flex-1 flex">
@@ -518,15 +528,18 @@ export default function Planning() {
                 return (
                   <div key={task.id} className="flex group hover:bg-gray-50/50 transition-colors">
                     <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white group-hover:bg-gray-50/50 z-[11] flex items-center justify-center">
-                      <input 
-                        type="checkbox" 
-                        checked={selectedIds.includes(task.id)}
-                        onChange={() => toggleSelectTask(task.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
-                      />
+                      {role !== 'lecture' && (
+                        <input 
+                          type="checkbox" 
+                          checked={selectedIds.includes(task.id)}
+                          onChange={() => toggleSelectTask(task.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
+                        />
+                      )}
                     </div>
                     <div className="w-64 p-4 border-r border-gray-100 sticky left-12 bg-white group-hover:bg-gray-50/50 z-10 flex justify-between items-center">
-                      <div className="cursor-pointer flex-1" onClick={() => {
+                      <div className={cn("flex-1", role !== 'lecture' && "cursor-pointer")} onClick={() => {
+                        if (role === 'lecture') return;
                         setSelectedTask(task);
                         setFormData({
                           block_id: task.block_id?.toString() || '',
@@ -545,12 +558,14 @@ export default function Planning() {
                         <p className="font-bold text-sm text-[#001F3F] truncate">{task.element}</p>
                         <p className="text-[10px] text-gray-400">{task.block_name || 'Général'} • {task.floor_name || 'N/A'}</p>
                       </div>
-                      <button onClick={() => {
-                        setSelectedTask(task);
-                        setIsDeleteConfirmOpen(true);
-                      }} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all">
-                        <Trash2 size={14} />
-                      </button>
+                      {role !== 'lecture' && (
+                        <button onClick={() => {
+                          setSelectedTask(task);
+                          setIsDeleteConfirmOpen(true);
+                        }} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                     <div className="flex-1 flex relative h-16 items-center">
                       {timelineDays.map((day, i) => (

@@ -4,8 +4,10 @@ import { Block } from '../types';
 import { ZONES, cn } from '../utils';
 import { motion } from 'motion/react';
 import { fetchBlocks as loadBlocks, createBlock, updateBlock, deleteBlock as removeBlock } from '../lib/supabaseService';
+import { useAuth } from '../auth/AuthProvider';
 
 export default function GestionBlocs() {
+  const { role } = useAuth();
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
@@ -61,13 +63,15 @@ export default function GestionBlocs() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Gestion des Blocs</h2>
           <p className="text-gray-500 text-sm sm:text-base">Configurez les structures principales de votre chantier.</p>
         </div>
-        <button 
-          onClick={() => openModal()}
-          className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
-        >
-          <Plus size={18} />
-          Ajouter un Bloc
-        </button>
+        {role !== 'lecture' && (
+          <button 
+            onClick={() => openModal()}
+            className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
+          >
+            <Plus size={18} />
+            Ajouter un Bloc
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -92,7 +96,7 @@ export default function GestionBlocs() {
               <th className="px-6 py-4">Nom du Bloc</th>
               <th className="px-6 py-4">Zone</th>
               <th className="px-6 py-4">Description</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+              {role !== 'lecture' && <th className="px-6 py-4 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -108,22 +112,24 @@ export default function GestionBlocs() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-gray-500 text-sm italic">{block.description}</td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                      onClick={() => openModal(block)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(block.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
+                {role !== 'lecture' && (
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => openModal(block)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(block.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

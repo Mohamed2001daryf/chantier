@@ -13,7 +13,7 @@ const ROLES = [
 ];
 
 export default function Settings() {
-  const { user, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -205,66 +205,74 @@ export default function Settings() {
             <p className="text-xs text-gray-400">Invitez des personnes et définissez leurs rôles</p>
           </div>
         </div>
-        <div className="p-6 space-y-5">
-          {/* Invite form */}
-          <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                placeholder="Email du collaborateur"
-                required
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm"
-              />
+        <div className="p-6 space-y-6">
+          {/* Invite form - only visible to admins */}
+          {role === 'admin' ? (
+            <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  placeholder="Email du collaborateur"
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm"
+                />
+              </div>
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value)}
+                className="px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm font-medium"
+              >
+                {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+              <button
+                type="submit"
+                disabled={inviteLoading}
+                className="bg-[#001F3F] hover:bg-[#003366] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-60 text-sm shrink-0"
+              >
+                {inviteLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
+                Inviter
+              </button>
+            </form>
+          ) : (
+            <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl text-sm text-gray-500 text-center">
+              Seuls les administrateurs peuvent inviter de nouveaux membres.
             </div>
-            <select
-              value={inviteRole}
-              onChange={e => setInviteRole(e.target.value)}
-              className="px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none text-sm font-medium"
-            >
-              {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
-            <button
-              type="submit"
-              disabled={inviteLoading}
-              className="bg-[#001F3F] hover:bg-[#003366] text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all active:scale-95 disabled:opacity-60 text-sm shrink-0"
-            >
-              {inviteLoading ? <Loader2 size={16} className="animate-spin" /> : <UserPlus size={16} />}
-              Inviter
-            </button>
-          </form>
+          )}
 
           {/* Roles legend */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {ROLES.map(r => (
-              <div key={r.value} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${r.color}`}>
-                <r.icon size={14} />
+              <div key={r.value} className={`flex items-center gap-3 p-3 rounded-xl border ${r.color}`}>
+                <div className={`p-2 rounded-lg bg-white/50`}>
+                  <r.icon size={18} />
+                </div>
                 <div>
-                  <span className="font-bold">{r.label}</span>
-                  <span className="ml-1 opacity-70">— {r.desc}</span>
+                  <p className="font-bold text-sm">{r.label}</p>
+                  <p className="text-[10px] opacity-80 uppercase tracking-wider">{r.desc}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {/* Members list */}
-          <div className="space-y-2">
-            {/* Owner (self) */}
-            <div className="flex items-center justify-between p-3 bg-[#FF851B]/5 rounded-xl border border-[#FF851B]/20">
+          <div className="space-y-3">
+            {/* Self */}
+            <div className={`flex items-center justify-between p-3 rounded-xl border ${role === 'admin' ? 'bg-[#FF851B]/5 border-[#FF851B]/20' : 'bg-gray-50 border-gray-100'}`}>
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-[#FF851B]/20 border-2 border-[#FF851B] flex items-center justify-center">
-                  <span className="text-xs font-bold text-[#FF851B]">{(user?.user_metadata?.full_name || user?.email || 'U').slice(0, 2).toUpperCase()}</span>
+                <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center ${role === 'admin' ? 'bg-[#FF851B]/20 border-[#FF851B]' : 'bg-gray-200 border-gray-300'}`}>
+                  <span className={`text-xs font-bold ${role === 'admin' ? 'text-[#FF851B]' : 'text-gray-500'}`}>{(user?.user_metadata?.full_name || user?.email || 'U').slice(0, 2).toUpperCase()}</span>
                 </div>
                 <div>
                   <p className="text-sm font-bold text-[#001F3F]">{user?.user_metadata?.full_name || 'Vous'}</p>
                   <p className="text-xs text-gray-400">{user?.email}</p>
                 </div>
               </div>
-              <span className="text-xs font-bold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full flex items-center gap-1">
-                <Crown size={12} />
-                Chef de Projet
+              <span className={`text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 ${getRoleInfo(role).color}`}>
+                {role === 'admin' ? <Crown size={12} /> : null}
+                {role === 'admin' ? 'Chef de Projet / Admin' : getRoleInfo(role).label}
               </span>
             </div>
 
@@ -285,27 +293,39 @@ export default function Settings() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <select
-                      value={m.role}
-                      onChange={e => handleRoleChange(m.id, e.target.value)}
-                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none ${roleInfo.color}`}
-                    >
-                      {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-                    </select>
-                    <button
-                      onClick={() => handleRemoveMember(m.id)}
-                      className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Retirer du projet"
-                    >
-                      <X size={16} />
-                    </button>
+                    {role === 'admin' ? (
+                      <>
+                        <select
+                          value={m.role}
+                          onChange={e => handleRoleChange(m.id, e.target.value)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none ${roleInfo.color}`}
+                        >
+                          {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                        </select>
+                        <button
+                          onClick={() => handleRemoveMember(m.id)}
+                          className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Retirer du projet"
+                        >
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <span className={`text-xs font-bold px-3 py-1.5 rounded-lg border ${roleInfo.color}`}>
+                        {roleInfo.label}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
             })}
 
             {members.length === 0 && (
-              <p className="text-sm text-gray-400 text-center py-4">Aucun membre invité. Utilisez le formulaire ci-dessus pour ajouter des collaborateurs.</p>
+              <div className="text-center p-8 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
+                <Users size={32} className="mx-auto text-gray-300 mb-2" />
+                <p className="text-sm text-gray-500 font-medium">Aucun membre dans l'équipe</p>
+                <p className="text-xs text-gray-400 mt-1">Invitez des collaborateurs pour commencer à travailler ensemble.</p>
+              </div>
             )}
           </div>
         </div>
@@ -371,8 +391,6 @@ export default function Settings() {
           )}
         </div>
       </div>
-    </div>
-
       {/* Share Modal */}
       {shareModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShareModal(null)}>
@@ -428,6 +446,7 @@ export default function Settings() {
           </motion.div>
         </div>
       )}
+    </div>
     </>
   );
 }
