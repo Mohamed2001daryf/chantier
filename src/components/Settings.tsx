@@ -89,10 +89,11 @@ export default function Settings() {
         if (res.ok) {
           showMessage('success', `✅ Email d'invitation envoyé à ${inviteEmail} (rôle: ${roleName})`);
         } else {
-          showMessage('success', `Membre ajouté (${roleName}). L'email n'a pas pu être envoyé automatiquement.`);
+          const errData = await res.json().catch(() => ({}));
+          showMessage('success', `Membre ajouté (${roleName}). Email non envoyé: ${errData.error || 'erreur serveur'}`);
         }
       } catch {
-        showMessage('success', `Membre ajouté (${roleName}). Configurez RESEND_API_KEY pour l'envoi automatique.`);
+        showMessage('success', `Membre ajouté (${roleName}). Email non envoyé (API indisponible).`);
       }
 
       setInviteEmail('');
