@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { acceptPendingInvitations } from '../lib/supabaseService';
 
 interface AuthContextType {
   user: User | null;
@@ -31,6 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      if (session?.user) {
+        acceptPendingInvitations().catch(console.error);
+      }
     });
 
     // Listen for auth state changes

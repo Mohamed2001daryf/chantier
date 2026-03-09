@@ -7,6 +7,105 @@ const getUserId = async (): Promise<string> => {
   return user.id;
 };
 
+// Get the effective project owner ID (for members viewing a shared project)
+export const getActiveProjectOwnerId = async (): Promise<string> => {
+  const uid = await getUserId();
+
+  // Check if this user is a member of another project
+  const { data: membership } = await supabase
+    .from('project_members')
+    .select('owner_id')
+    .eq('member_id', uid)
+    .eq('status', 'accepted')
+    .limit(1)
+    .maybeSingle();
+
+  // If member of a project, return the owner's ID; otherwise return own ID
+  return membership?.owner_id || uid;
+};
+
+// Get the user's role in the current project
+export const getUserRole = async (): Promise<string> => {
+  const uid = await getUserId();
+
+  // Check if member of another project
+  const { data: membership } = await supabase
+    .from('project_members')
+    .select('role')
+    .eq('member_id', uid)
+    .eq('status', 'accepted')
+    .limit(1)
+    .maybeSingle();
+
+  return membership?.role || 'admin'; // Owner = admin by default
+};
+
+// ─── PROJECT MEMBERS ──────────────────────────────────────
+export const fetchProjectMembers = async () => {
+  const uid = await getUserId();
+  const { data, error } = await supabase
+    .from('project_members')
+    .select('*')
+    .eq('owner_id', uid);
+  if (error) console.error('fetchProjectMembers error:', error);
+  return data || [];
+};
+
+export const inviteProjectMember = async (email: string, role: string) => {
+  const uid = await getUserId();
+
+  // Check if already invited
+  const { data: existing } = await supabase
+    .from('project_members')
+    .select('id')
+    .eq('owner_id', uid)
+    .eq('member_email', email)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error('Cette personne est déjà invitée.');
+  }
+
+  // Check if the invited user already has an account
+  // We look for their user_id via their email in project_members or auth
+  // For now, we just store the email and resolve member_id on login
+
+  const { data, error } = await supabase.from('project_members').insert({
+    owner_id: uid,
+    member_email: email.toLowerCase().trim(),
+    role,
+    status: 'pending'
+  }).select().single();
+
+  if (error) {
+    console.error('inviteProjectMember error:', error);
+    throw error;
+  }
+  return data;
+};
+
+export const removeProjectMember = async (id: number) => {
+  const { error } = await supabase.from('project_members').delete().eq('id', id);
+  if (error) console.error('removeProjectMember error:', error);
+};
+
+export const updateMemberRole = async (id: number, role: string) => {
+  const { error } = await supabase.from('project_members').update({ role }).eq('id', id);
+  if (error) console.error('updateMemberRole error:', error);
+};
+
+// Called on login to accept pending invitations matching the user's email
+export const acceptPendingInvitations = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return;
+
+  await supabase
+    .from('project_members')
+    .update({ member_id: user.id, status: 'accepted' })
+    .eq('member_email', user.email.toLowerCase())
+    .eq('status', 'pending');
+};
+
 // ─── BLOCKS ───────────────────────────────────────────────
 export const fetchBlocks = async () => {
   const uid = await getUserId();

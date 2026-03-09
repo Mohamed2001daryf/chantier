@@ -14,7 +14,8 @@ import {
   X,
   ChevronRight,
   LogOut,
-  Loader2
+  Loader2,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -32,6 +33,7 @@ import Equipes from './components/Equipes';
 import Productivite from './components/Productivite';
 import Retards from './components/Retards';
 import Rapports from './components/Rapports';
+import Settings from './components/Settings';
 
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, component: Dashboard },
@@ -44,6 +46,7 @@ const MENU_ITEMS = [
   { id: 'productivite', label: 'Productivité', icon: TrendingUp, component: Productivite },
   { id: 'retards', label: 'Retards', icon: AlertTriangle, component: Retards },
   { id: 'rapports', label: 'Rapports', icon: FileText, component: Rapports },
+  { id: 'settings', label: 'Paramètres', icon: SettingsIcon, component: Settings },
 ];
 
 export default function App() {
@@ -154,7 +157,11 @@ export default function App() {
 
         <div className="p-4 border-t border-white/10">
           {isOpen ? (
-            <div className="flex items-center gap-3 px-2">
+              <div 
+                className="flex items-center gap-3 px-2 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition-colors"
+                onClick={() => handleNavClick('settings')}
+                title="Paramètres du compte"
+              >
               <div className="w-10 h-10 rounded-full bg-[#FF851B]/20 border-2 border-[#FF851B] flex items-center justify-center shrink-0">
                 <span className="text-xs font-bold text-[#FF851B]">{userInitials}</span>
               </div>
@@ -164,13 +171,13 @@ export default function App() {
               </div>
               <button
                 id="logout-button"
-                onClick={signOut}
+                onClick={(e) => { e.stopPropagation(); signOut(); }}
                 title="Se déconnecter"
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors text-gray-400 hover:text-red-400 shrink-0"
               >
                 <LogOut size={18} />
               </button>
-            </div>
+              </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
               <div className="w-10 h-10 rounded-full bg-[#FF851B]/20 border-2 border-[#FF851B] flex items-center justify-center">
