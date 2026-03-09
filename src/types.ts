@@ -107,24 +107,18 @@ export interface ProductivityRecord {
 export interface DashboardStats {
   kpis: {
     globalProgress: number;
-    elementsInProgress: number;
-    delayedTasks: number;
     elementsCompleted: number;
+    delayedTasks: number;
+    elementsInProgress: number;
   };
-  progressByBlock: { 
-    id: number;
-    name: string; 
+  taskStatusPie: {
+    not_started: number;
+    started: number;
+    completed: number;
+  };
+  progressByBlock: {
+    name: string;
     progress: number;
-    floors: {
-      id: number;
-      name: string;
-      order_number: number;
-      elements: {
-        type: string;
-        done: number;
-        total: number;
-      }[];
-    }[];
   }[];
   progressByElementType: {
     all: { type: string; progress: number }[];
@@ -132,24 +126,23 @@ export interface DashboardStats {
   };
   delayedTasksList: {
     id: number;
-    element: string;
+    name: string;
     block: string;
-    delay: number;
+    joursRetard: number;
   }[];
-  teamProductivity: { 
-    block: string; 
-    team: string; 
-    workers: number; 
-    completed: number; 
-    assigned: number; 
-    progress: number 
-  }[];
-  progressByFloor: { 
+  progressByFloor: {
     id: number;
+    floorName: string;
     blockName: string;
-    floorName: string; 
-    order_number: number;
-    elements: { type: string; progress: number }[] 
+    elements: { type: string; done: number; total: number }[];
+  }[];
+  teamProductivity: {
+    block: string;
+    team: string;
+    workers: number;
+    completed: number;
+    assigned: number;
+    productivity: number;
   }[];
   progressOverTime: {
     date: string;

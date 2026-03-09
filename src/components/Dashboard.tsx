@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import { 
-  Users, AlertTriangle, CheckCircle2, Clock, TrendingUp, Layers, Box, 
-  Building2, Layout, Activity, Calendar, UserCheck, Timer, ChevronDown, ChevronRight
+  Users, AlertTriangle, CheckCircle2, Clock, TrendingUp, Layers, 
+  Activity, Timer, Building2
 } from 'lucide-react';
 import { DashboardStats } from '../types';
-import { motion } from 'motion/react';
-import { cn } from '../utils';
 import { supabase } from '../lib/supabase';
 import { getActiveProjectOwnerId } from '../lib/supabaseService';
 
@@ -17,704 +15,583 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedElementBlock, setSelectedElementBlock] = useState<string>('all');
-  const [expandedBlocks, setExpandedBlocks] = useState<Set<number>>(new Set());
-
-  const toggleBlock = (blockId: number) => {
-    setExpandedBlocks(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(blockId)) {
-        newSet.delete(blockId);
-      } else {
-        newSet.add(blockId);
-      }
-      return newSet;
-    });
-  };
 
   useEffect(() => {
     loadDashboardData();
+    const interval = setInterval(() => {
+      loadDashboardData();
+    }, 5 * 60 * 1000); // 5 minutes
+    return () => clearInterval(interval);
   }, []);
 
   const loadDashboardData = async () => {
     try {
-      const uid = await getActiveProjectOwnerId();
-      if (!uid) return;
+      const ownerId = await getActiveProjectOwnerId();
+      if (!ownerId) return;
 
       const [
-        { data: tasks },
-        { data: blocks },
-        { data: teams },
-        { data: verticalElements },
-        { data: slabs },
-        { data: floors },
-        { data: productivity }
+        { data: blocksData },
+        { data: floorsData },
+        { data: verticalElementsData },
+        { data: slabsData },
+        { data: tasksData },
+        { data: teamsData },
+        { data: productivityData }
       ] = await Promise.all([
-        supabase.from('tasks').select('*').eq('user_id', uid),
-        supabase.from('blocks').select('*').eq('user_id', uid),
-        supabase.from('teams').select('*, blocks(name)').eq('user_id', uid),
-        supabase.from('vertical_elements').select('id, block_id, floor_id, type, coulage_status').eq('user_id', uid),
-        supabase.from('slabs').select('id, block_id, floor_id, status').eq('user_id', uid),
-        supabase.from('floors').select('id, name, order_number, block_id').eq('user_id', uid),
-        supabase.from('productivity').select('*').eq('user_id', uid)
+        supabase.from('blocks').select('*').eq('user_id', ownerId),
+        supabase.from('floors').select('*').eq('user_id', ownerId),
+        supabase.from('vertical_elements').select('*').eq('user_id', ownerId),
+        supabase.from('slabs').select('*').eq('user_id', ownerId),
+        supabase.from('tasks').select('*').eq('user_id', ownerId),
+        supabase.from('teams').select('*').eq('user_id', ownerId),
+        supabase.from('productivity').select('*').eq('user_id', ownerId)
       ]);
 
-      const allTasks = tasks || [];
-      const allBlocks = blocks || [];
-      const allTeams = teams || [];
-      const allFloors = floors || [];
-      const allElements = verticalElements || [];
-      const allSlabs = slabs || [];
-      const allProductivity = productivity || [];
+      const blocks = blocksData || [];
+      const floors = floorsData || [];
+      const verticalElements = verticalElementsData || [];
+      const slabs = slabsData || [];
+      const tasks = tasksData || [];
+      const teams = teamsData || [];
+      const productivity = productivityData || [];
 
-      const today = new Date().toISOString().split('T')[0];
+      // Normalisation des types (OBLIGATOIRE)
+      const normalizeType = (type?: string) => {
+        const t = type?.trim().toLowerCase();
+        if (t === 'poteau') return 'Poteaux';
+        if (t === 'voile') return 'Voiles';
+        if (t === 'dalle') return 'Dalles';
+        return type?.trim() || 'Inconnu';
+      };
 
-      // 1. KPIs
-      const totalElements = allElements.length + allSlabs.length;
-      const completedElements = 
-        allElements.filter(e => e.coulage_status === 'Terminé' || e.coulage_status === 'termine').length + 
-        allSlabs.filter(s => s.status === 'Terminé' || s.status === 'termine').length;
+      const allElements = [
+        ...verticalElements.map(e => ({ ...e, normalizedType: normalizeType(e.type), unifiedStatus: e.coulage_status })),
+        ...slabs.map(s => ({ ...s, normalizedType: 'Dalles', unifiedStatus: s.status }))
+      ];
+
+      // Calcul avancement global
+      const totalElements = allElements.length;
+      const terminatedElements = allElements.filter(e => e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé').length;
+      const globalProgress = totalElements > 0 ? Math.round((terminatedElements / totalElements) * 100) : 0;
       
-      const elementsInProgress = 
-        allElements.filter(e => e.coulage_status === 'En cours' || e.coulage_status === 'en_cours').length + 
-        allSlabs.filter(s => s.status === 'En cours' || s.status === 'en_cours').length;
+      const elementsInProgress = allElements.filter(e => e.unifiedStatus === 'en_cours' || e.unifiedStatus === 'En cours').length;
 
-      const globalProgress = totalElements > 0 ? (completedElements / totalElements) * 100 : 0;
-      const delayedTasks = allTasks.filter(t => t.status !== 'Terminé' && t.end_date < today).length;
+      // Calcul retards
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const delayedTasksData = tasks.filter(t => t.date_fin && new Date(t.date_fin) < today && t.statut !== 'termine' && t.statut !== 'Terminé').map(t => {
+        const tEnd = new Date(t.date_fin);
+        tEnd.setHours(0,0,0,0);
+        return {
+          ...t,
+          joursRetard: Math.floor((today.getTime() - tEnd.getTime()) / (1000 * 60 * 60 * 24))
+        };
+      }).sort((a, b) => b.joursRetard - a.joursRetard);
 
       const kpis = {
         globalProgress,
-        elementsInProgress,
-        delayedTasks,
-        elementsCompleted: completedElements
+        elementsCompleted: terminatedElements,
+        delayedTasks: delayedTasksData.length,
+        elementsInProgress
       };
 
-      // 2. Progress by Block
-      const progressByBlock = allBlocks.map(b => {
-        const blockElements = allElements.filter(e => e.block_id === b.id);
-        const blockSlabs = allSlabs.filter(s => s.block_id === b.id);
-        const total = blockElements.length + blockSlabs.length;
-        const done = 
-          blockElements.filter(e => e.coulage_status === 'Terminé' || e.coulage_status === 'termine').length +
-          blockSlabs.filter(s => s.status === 'Terminé' || s.status === 'termine').length;
-        const progress = total > 0 ? (done / total) * 100 : 0;
+      // Statut des Tâches (Pie)
+      const taskStatusPie = {
+        not_started: allElements.filter(e => !e.unifiedStatus || e.unifiedStatus === 'non_commence' || e.unifiedStatus === 'Non commencé').length,
+        started: elementsInProgress,
+        completed: terminatedElements
+      };
 
-        const blockFloors = allFloors
-          .filter(f => f.block_id === b.id)
-          .sort((f1, f2) => (f1.order_number || 0) - (f2.order_number || 0))
-          .map(f => {
-            const floorElements = blockElements.filter(ve => ve.floor_id === f.id);
-            const floorSlabs = blockSlabs.filter(s => s.floor_id === f.id);
-            
-            const typeMap = new Map<string, { done: number; total: number }>();
-            floorElements.forEach(element => {
-              if (!element.type) return;
-              const type = element.type;
-              const prev = typeMap.get(type) || { done: 0, total: 0 };
-              prev.total += 1;
-              if (element.coulage_status === 'Terminé' || element.coulage_status === 'termine') prev.done += 1;
-              typeMap.set(type, prev);
-            });
-
-            if (floorSlabs.length > 0) {
-              const type = 'Dalles';
-              const prev = typeMap.get(type) || { done: 0, total: 0 };
-              prev.total += floorSlabs.length;
-              prev.done += floorSlabs.filter(s => s.status === 'Terminé' || s.status === 'termine').length;
-              typeMap.set(type, prev);
-            }
-
-            const elementsList = Array.from(typeMap.entries()).map(([type, counts]) => ({
-              type,
-              done: counts.done,
-              total: counts.total
-            }));
-
-            return {
-              id: f.id,
-              name: f.name,
-              order_number: f.order_number || 0,
-              elements: elementsList
-            };
-          });
-
-        return { id: b.id, name: b.name, progress, floors: blockFloors };
+      // Avancement par Bloc
+      const progressByBlock = blocks.map(b => {
+        const bElements = allElements.filter(e => e.block_id === b.id);
+        const bTotal = bElements.length;
+        const bDone = bElements.filter(e => e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé').length;
+        return {
+          name: b.name,
+          progress: bTotal > 0 ? Math.round((bDone / bTotal) * 100) : 0
+        };
       });
 
-      // 3. Progress by Element Type
-      const elementTypeMapAll = new Map<string, { done: number; total: number }>();
-      const elementTypeMapByBlock = new Map<string, Map<string, { done: number; total: number }>>();
-
-      const processType = (type: string, blockName: string, isDone: boolean) => {
-        // Global
-        const prevAll = elementTypeMapAll.get(type) || { done: 0, total: 0 };
-        prevAll.total += 1;
-        if (isDone) prevAll.done += 1;
-        elementTypeMapAll.set(type, prevAll);
-        
-        // By Block
-        if (!elementTypeMapByBlock.has(blockName)) {
-          elementTypeMapByBlock.set(blockName, new Map());
-        }
-        const blockMap = elementTypeMapByBlock.get(blockName)!;
-        const prevBlock = blockMap.get(type) || { done: 0, total: 0 };
-        prevBlock.total += 1;
-        if (isDone) prevBlock.done += 1;
-        blockMap.set(type, prevBlock);
-      };
+      // Avancement par Type d'Élément
+      const typeMapAll = new Map<string, { done: number; total: number }>();
+      const typeMapByBlock = new Map<string, Map<string, { done: number; total: number }>>();
 
       allElements.forEach(e => {
-        if (!e.type) return;
-        const blockName = allBlocks.find(b => b.id === e.block_id)?.name || 'Général';
-        processType(e.type, blockName, e.coulage_status === 'Terminé' || e.coulage_status === 'termine');
+        const type = e.normalizedType;
+        const blockName = blocks.find(b => b.id === e.block_id)?.name || 'Général';
+        const isDone = e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé';
+        
+        const pAll = typeMapAll.get(type) || { done: 0, total: 0 };
+        pAll.total++;
+        if(isDone) pAll.done++;
+        typeMapAll.set(type, pAll);
+
+        if(!typeMapByBlock.has(blockName)) typeMapByBlock.set(blockName, new Map());
+        const bMap = typeMapByBlock.get(blockName)!;
+        const pBlock = bMap.get(type) || { done: 0, total: 0 };
+        pBlock.total++;
+        if(isDone) pBlock.done++;
+        bMap.set(type, pBlock);
       });
 
-      allSlabs.forEach(s => {
-        const blockName = allBlocks.find(b => b.id === s.block_id)?.name || 'Général';
-        processType('Dalles', blockName, s.status === 'Terminé' || s.status === 'termine');
-      });
-
-      const buildProgressList = (map: Map<string, { done: number; total: number }>) => 
-        Array.from(map.entries())
-          .filter(([_, v]) => v.total > 0)
-          .map(([type, v]) => ({ type, progress: (v.done / v.total) * 100 }));
-
-      const byBlockObj: Record<string, { type: string; progress: number }[]> = {};
-      Array.from(elementTypeMapByBlock.entries()).forEach(([blockName, blockMap]) => {
-        byBlockObj[blockName] = buildProgressList(blockMap);
-      });
+      const mapToProgress = (m: Map<string, { done: number; total: number }>) => 
+        Array.from(m.entries()).filter(([_,v]) => v.total > 0).map(([t,v]) => ({ type: t, progress: Math.round((v.done / v.total) * 100) }));
 
       const progressByElementType = {
-        all: buildProgressList(elementTypeMapAll),
-        byBlock: byBlockObj
+        all: mapToProgress(typeMapAll),
+        byBlock: Object.fromEntries(Array.from(typeMapByBlock.entries()).map(([b, m]) => [b, mapToProgress(m)]))
       };
 
-      // 4. Delayed Tasks
-      const delayedTasksList = allTasks
-        .filter(t => t.status !== 'Terminé' && t.end_date < today)
-        .map(t => {
-          const block = allBlocks.find(b => b.id === t.block_id);
-          const delayDays = Math.ceil((new Date().getTime() - new Date(t.end_date).getTime()) / (1000 * 60 * 60 * 24));
-          return {
-            id: t.id,
-            element: t.element || t.name || 'Tâche',
-            block: block?.name || 'Général',
-            delay: delayDays > 0 ? delayDays : 0
-          };
-        })
-        .sort((a, b) => b.delay - a.delay); // Most critical first
+      // Liste des retards
+      const delayedTasksList = delayedTasksData.map(t => ({
+        id: t.id,
+        name: t.name || 'Tâche',
+        block: blocks.find(b => b.id === t.block_id)?.name || 'Général',
+        joursRetard: t.joursRetard
+      }));
 
-      // 5. Team Productivity
-      const todayDateObj = new Date();
+      // Avancement par Étage
+      const progressByFloor = floors.map(f => {
+        const fBlock = blocks.find(b => b.id === f.block_id)?.name || 'Général';
+        const fElements = allElements.filter(e => e.floor_id === f.id);
+        const fTypeMap = new Map<string, { done: number; total: number }>();
+        fElements.forEach(e => {
+          const isDone = e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé';
+          const p = fTypeMap.get(e.normalizedType) || { done: 0, total: 0 };
+          p.total++;
+          if(isDone) p.done++;
+          fTypeMap.set(e.normalizedType, p);
+        });
+        return {
+          id: f.id,
+          floorName: f.name,
+          blockName: fBlock,
+          order_number: f.order_number || 0,
+          elements: Array.from(fTypeMap.entries()).filter(([_,v])=>v.total>0).map(([t,v]) => ({
+            type: t,
+            done: v.done,
+            total: v.total
+          }))
+        }
+      }).filter(f => f.elements.length > 0)
+      .sort((a, b) => a.order_number - b.order_number);
+
+      // Productivité des Équipes
       const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(todayDateObj.getDate() - 7);
+      oneWeekAgo.setDate(today.getDate() - 7);
       
-      const teamProductivity = allTeams.map(team => {
-        const blockName = (team as any).blocks?.name || allBlocks.find(b => b.id === team.block_id)?.name || 'N/A';
-        const teamProdRecords = allProductivity.filter(p => p.team_id === team.id && new Date(p.date) >= oneWeekAgo);
+      const teamProductivity = teams.map(team => {
+        const teamBlock = blocks.find(b => b.id === team.block_id)?.name || 'Général';
+        const prod = productivity.filter(p => p.team_id === team.id && new Date(p.date) >= oneWeekAgo);
         
         let assigned = 0;
         let completed = 0;
-        teamProdRecords.forEach(p => {
-          assigned += (p.quantity_assigned || p.tasks_assigned || 0); // Handle varying column names if any
+        prod.forEach(p => {
+          assigned += (p.quantity_assigned || p.tasks_assigned || 0);
           completed += (p.quantity_realized || p.tasks_completed || 0);
         });
 
-        // Fallback to tasks if no productivity records exist for the team
-        if (assigned === 0 && completed === 0) {
-          const teamTasks = allTasks.filter(t => t.team_id === team.id);
-          assigned = teamTasks.length;
-          completed = teamTasks.filter(t => t.status === 'Terminé').length;
-        }
-
         return {
-          block: blockName,
+          block: teamBlock,
           team: team.name,
           workers: team.workers || 0,
-          completed,
           assigned,
-          progress: assigned > 0 ? (completed / assigned) * 100 : 0
+          completed,
+          productivity: assigned > 0 ? Math.round((completed / assigned) * 100) : 0
         };
       }).filter(t => t.assigned > 0 || t.completed > 0);
 
-      // 6. Progress By Floor
-      const progressByFloor = allFloors.map(floor => {
-        const floorBlockName = allBlocks.find(b => b.id === floor.block_id)?.name || 'Général';
-        const floorVerticalElements = allElements.filter(e => e.floor_id === floor.id);
-        const floorSlabs = allSlabs.filter(s => s.floor_id === floor.id);
-        
-        const typeMap = new Map<string, { done: number; total: number }>();
-        
-        floorVerticalElements.forEach(element => {
-          if (!element.type) return;
-          const type = element.type;
-          const prev = typeMap.get(type) || { done: 0, total: 0 };
-          prev.total += 1;
-          if (element.coulage_status === 'Terminé' || element.coulage_status === 'termine') prev.done += 1;
-          typeMap.set(type, prev);
-        });
-
-        if (floorSlabs.length > 0) {
-          const type = 'Dalles';
-          const prev = typeMap.get(type) || { done: 0, total: 0 };
-          prev.total += floorSlabs.length;
-          prev.done += floorSlabs.filter(s => s.status === 'Terminé' || s.status === 'termine').length;
-          typeMap.set(type, prev);
-        }
-
-        const elementsProgress = Array.from(typeMap.entries()).map(([type, counts]) => ({
-          type,
-          progress: counts.total > 0 ? (counts.done / counts.total) * 100 : 0
-        }));
-
-        return {
-          id: floor.id,
-          blockName: floorBlockName,
-          floorName: floor.name,
-          order_number: floor.order_number || 0,
-          elements: elementsProgress
-        };
-      }).filter(floor => floor.elements.length > 0)
-      .sort((a, b) => a.order_number - b.order_number);
-
-      // 7. Progress Over Time (Last 30 Days Cumulative)
+      // Courbe d'Avancement Cumulé global (30 derniers jours)
       const progressOverTime = [];
       const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
       
-      const finishedDates = allTasks
-        .filter(t => t.status === 'Terminé' && t.end_date)
-        .map(t => new Date(t.end_date).getTime());
+      const termineDates = allElements.filter(e => (e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé') && e.updated_at)
+        .map(e => new Date(e.updated_at).getTime());
         
       for (let i = 0; i <= 30; i++) {
         const d = new Date(thirtyDaysAgo);
         d.setDate(d.getDate() + i);
-        const dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-        
-        const completedCount = finishedDates.filter(time => time <= d.getTime()).length;
-        const totalTasks = allTasks.filter(t => t.start_date && new Date(t.start_date).getTime() <= d.getTime()).length;
-        // Fallback total to current totalTasks if we don't have enough start_date resolution
-        const finalTotal = totalTasks > 0 ? totalTasks : allTasks.length;
-
+        const completedCount = termineDates.filter(t => t <= d.getTime()).length;
         progressOverTime.push({
-          date: dateStr,
-          globalProgress: finalTotal > 0 ? (completedCount / finalTotal) * 100 : 0
+          date: d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
+          globalProgress: totalElements > 0 ? Math.round((completedCount / totalElements) * 100) : 0
         });
       }
 
       setStats({
         kpis,
+        taskStatusPie,
         progressByBlock,
         progressByElementType,
         delayedTasksList,
-        teamProductivity,
         progressByFloor,
+        teamProductivity,
         progressOverTime
       });
+
     } catch (error) {
-      console.error('Erreur lors du chargement du dashboard:', error);
+      console.error('Erreur chargement dashboard:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading || !stats) return (
-    <div className="flex flex-col items-center justify-center h-64 space-y-4">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#001F3F]"></div>
-      <p className="text-gray-500 font-medium">Chargement des indicateurs en temps réel...</p>
-    </div>
-  );
+  if (loading || !stats) {
+    return (
+      <div className="bg-[#F1F5F9] min-h-screen p-8 animate-pulse">
+        <div className="max-w-7xl mx-auto space-y-8">
+          <div className="h-10 w-48 bg-gray-200 rounded-lg"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[...Array(4)].map((_, i) => <div key={i} className="h-32 bg-gray-200 rounded-2xl"></div>)}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="h-[300px] bg-gray-200 rounded-2xl"></div>
+            <div className="h-[300px] bg-gray-200 rounded-2xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const COLORS = ['#001F3F', '#FF851B', '#3D9970', '#AAAAAA', '#FF4136'];
-  const STATUS_COLORS: Record<string, string> = {
-    'Terminé': '#3D9970',
-    'En cours': '#FF851B',
-    'Non commencé': '#AAAAAA'
-  };
+  // Couleurs principales
+  const COLOR_ORANGE = '#F97316';
+  const COLOR_BLUE = '#1E293B';
+  const COLOR_GREEN = '#22C55E';
+  const COLOR_RED = '#EF4444';
+  const COLOR_GRAY = '#9CA3AF'; // Non commencé
+
+  const pieData = [
+    { name: 'Non commencé', value: stats.taskStatusPie.not_started, color: COLOR_GRAY },
+    { name: 'En cours', value: stats.taskStatusPie.started, color: COLOR_ORANGE },
+    { name: 'Terminé', value: stats.taskStatusPie.completed, color: COLOR_GREEN }
+  ];
 
   return (
-    <div className="space-y-8 pb-12">
-      {/* Header with Refresh Button */}
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-[#001F3F]">Tableau de bord</h2>
-        <button 
-          onClick={() => { setLoading(true); loadDashboardData(); }}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
-        >
-          <Activity size={16} />
-          Actualiser
-        </button>
-      </div>
+    <div className="bg-[#F1F5F9] min-h-screen pb-12">
+      <div className="max-w-7xl mx-auto space-y-8 text-[#1E293B]">
+        
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-6 pt-4">
+          <h2 className="text-2xl font-bold">Tableau de Bord</h2>
+          <button 
+            onClick={() => { setLoading(true); loadDashboardData(); }}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm text-[#1E293B]"
+          >
+            <Activity size={16} />
+            Actualiser
+          </button>
+        </div>
 
-      {/* SECTION 1 : KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard 
-          title="Avancement Global" 
-          value={`${Math.round(stats.kpis.globalProgress)}%`} 
-          icon={TrendingUp} 
-          color="bg-[#001F3F]" 
-          progress={stats.kpis.globalProgress}
-          subtitle="Éléments et dalles terminés"
-        />
-        <StatCard 
-          title="Éléments en Cours" 
-          value={stats.kpis.elementsInProgress.toString()} 
-          icon={Timer} 
-          color="bg-[#FF851B]" 
-          subtitle="Coulage ou statut actif"
-        />
-        <StatCard 
-          title="Tâches en Retard" 
-          value={stats.kpis.delayedTasks.toString()} 
-          icon={AlertTriangle} 
-          color={stats.kpis.delayedTasks > 0 ? "bg-red-500" : "bg-[#3D9970]"} 
-          subtitle={stats.kpis.delayedTasks > 0 ? "Nécessitent une attention" : "Aucun retard sur le planning"}
-        />
-        <StatCard 
-          title="Total Terminés" 
-          value={stats.kpis.elementsCompleted.toString()} 
-          icon={CheckCircle2} 
-          color="bg-[#3D9970]" 
-          subtitle="Volume global validé"
-        />
-      </div>
+        {/* LIGNE 1 : KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-3xl font-black">{stats.kpis.globalProgress}%</h4>
+              <TrendingUp size={24} className="text-[#1E293B]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#1E293B] mb-2">Avancement Global</p>
+              <div className="w-full h-1 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-[#1E293B]" style={{ width: `${stats.kpis.globalProgress}%` }}></div>
+              </div>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* SECTION 2 : PROGRESS BY BLOCK (ACCORDION) */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="text-lg font-bold text-[#001F3F] mb-6 flex items-center gap-2">
-            <Building2 className="text-[#FF851B]" size={20} />
-            Avancement par Bloc
-          </h3>
-          <div className="space-y-4 flex-grow overflow-y-auto pr-2 max-h-[500px]">
-            {stats.progressByBlock.map((block) => {
-              const bProgress = Math.round(block.progress);
-              return (
-                <div key={block.id} className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <button 
-                    onClick={() => toggleBlock(block.id)}
-                    className="w-full flex items-center justify-between p-4 flex-wrap gap-2 transition-colors relative overflow-hidden group"
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-3xl font-black">{stats.kpis.elementsCompleted}</h4>
+              <CheckCircle2 size={24} className="text-[#22C55E]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#1E293B] mb-1">Éléments Terminés</p>
+              <p className="text-xs text-gray-500">Totalité des éléments validés</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-3xl font-black">{stats.kpis.delayedTasks}</h4>
+              <AlertTriangle size={24} className={stats.kpis.delayedTasks > 0 ? "text-[#EF4444]" : "text-[#22C55E]"} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#1E293B] mb-1">Tâches en Retard</p>
+              <p className="text-xs text-gray-500">Retard identifié sur le planning</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-2">
+              <h4 className="text-3xl font-black">{stats.kpis.elementsInProgress}</h4>
+              <Timer size={24} className="text-[#F97316]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-[#1E293B] mb-1">Éléments En Cours</p>
+              <p className="text-xs text-gray-500">Chantiers actifs actuellement</p>
+            </div>
+          </div>
+        </div>
+
+        {/* LIGNE 2 : GRAPHIQUES */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* GAUCHE : DONUT CHART STATUT */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <h3 className="text-lg font-bold mb-4 text-[#1E293B]">Statut des Tâches</h3>
+            {stats.taskStatusPie.completed === 0 && stats.taskStatusPie.not_started === 0 && stats.taskStatusPie.started === 0 ? (
+              <p className="flex-1 flex items-center justify-center italic text-gray-400">Aucune donnée disponible</p>
+            ) : (
+              <div className="w-full h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Legend verticalAlign="bottom" height={36}/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* DROITE : AVANCEMENT PAR BLOC */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <h3 className="text-lg font-bold mb-4 text-[#1E293B]">Avancement par Bloc</h3>
+            {stats.progressByBlock.length === 0 ? (
+              <p className="flex-1 flex items-center justify-center italic text-gray-400">Aucune donnée disponible</p>
+            ) : (
+              <div className="w-full h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stats.progressByBlock} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+                    <Tooltip cursor={{fill: '#f8fafc'}} formatter={(val: number) => [`${val}%`, 'Avancement']} />
+                    <Bar dataKey="progress" radius={[0, 4, 4, 0]} barSize={20}>
+                      {stats.progressByBlock.map((entry, index) => (
+                        <Cell key={index} fill={entry.progress === 100 ? COLOR_GREEN : COLOR_ORANGE} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* LIGNE 3 : CÔTE À CÔTE */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* GAUCHE : TYPE ÉLÉMENT */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold text-[#1E293B]">Avancement par Type d'Élément</h3>
+              <select
+                value={selectedElementBlock}
+                onChange={(e) => setSelectedElementBlock(e.target.value)}
+                className="px-3 py-1.5 bg-[#F1F5F9] border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+              >
+                <option value="all">Tous les blocs</option>
+                {Object.keys(stats.progressByElementType.byBlock).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+            
+            {stats.progressByElementType.all.length === 0 ? (
+              <p className="flex-1 flex items-center justify-center italic text-gray-400">Aucune donnée disponible</p>
+            ) : (
+              <div className="w-full h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={selectedElementBlock === 'all' ? stats.progressByElementType.all : (stats.progressByElementType.byBlock[selectedElementBlock] || [])} 
+                    layout="vertical" 
+                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                   >
-                    {/* Background Progress Bar for Block */}
-                    <div 
-                      className="absolute inset-0 bg-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity" 
-                      style={{ width: `${bProgress}%` }}
-                    />
-                    
-                    <div className="flex items-center gap-3 relative z-10">
-                      {expandedBlocks.has(block.id) ? <ChevronDown size={20} className="text-[#001F3F]" /> : <ChevronRight size={20} className="text-gray-400" />}
-                      <span className="font-bold text-[#001F3F] text-left text-lg">📦 {block.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 relative z-10">
-                      <div className="flex flex-col items-end">
-                        <span className={cn(
-                          "text-sm font-bold",
-                          bProgress === 100 ? "text-green-600" : bProgress > 0 ? "text-[#FF851B]" : "text-gray-400"
-                        )}>
-                          {bProgress}%
-                        </span>
-                        <div className="w-24 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
-                          <div 
-                            className={cn("h-full rounded-full transition-all duration-500", bProgress === 100 ? "bg-green-500" : "bg-[#FF851B]")} 
-                            style={{ width: `${bProgress}%` }} 
-                          />
-                        </div>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E2E8F0" />
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis dataKey="type" type="category" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                    <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(val: number) => [`${val}%`, 'Avancement']} />
+                    <Bar dataKey="progress" radius={[0, 4, 4, 0]} barSize={20}>
+                      {(selectedElementBlock === 'all' ? stats.progressByElementType.all : (stats.progressByElementType.byBlock[selectedElementBlock] || [])).map((entry, index) => (
+                        <Cell key={index} fill={entry.progress === 100 ? COLOR_GREEN : COLOR_ORANGE} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {/* DROITE : RETARDS */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+            <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#1E293B]">
+              <Clock className="text-[#EF4444]" size={20} />
+              Suivi des Retards
+            </h3>
+            <div className="overflow-y-auto max-h-[300px] flex-grow pr-2">
+              {stats.delayedTasksList.length > 0 ? (
+                <ul className="space-y-3">
+                  {stats.delayedTasksList.map(task => (
+                    <li key={task.id} className="flex flex-wrap items-center justify-between p-3 rounded-xl bg-[#F8FAFC] border border-gray-100">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-[#1E293B]">{task.name}</span>
+                        <span className="text-xs text-gray-500">Bloc {task.block}</span>
                       </div>
-                      {bProgress === 100 && <CheckCircle2 size={20} className="text-green-500" />}
-                    </div>
-                  </button>
-                  
-                  {expandedBlocks.has(block.id) && (
-                    <div className="p-4 bg-gray-50/50 border-t border-gray-100 space-y-4">
-                      {block.floors.map((floor, fIdx) => (
-                        <div key={floor.id} className="relative pl-6">
-                          {/* Tree line connector */}
-                          <div className="absolute left-2 top-0 bottom-0 w-px bg-gray-200" style={{ height: fIdx === block.floors.length - 1 ? '16px' : '100%' }}></div>
-                          <div className="absolute left-2 top-3 w-4 h-px bg-gray-200"></div>
-                          
-                          <h4 className="font-bold text-sm text-[#001F3F] mb-2">{floor.name}</h4>
-                          <div className="pl-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {floor.elements.map((el, eIdx) => {
-                              const isDone = el.total > 0 && el.done === el.total;
-                              return (
-                                <div key={eIdx} className="flex items-center justify-between text-sm bg-white p-2 rounded border border-gray-100 shadow-sm">
-                                  <span className="font-medium text-gray-700">{el.type}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className={cn(
-                                      "text-xs font-semibold px-2 py-0.5 rounded-full",
-                                      isDone ? "bg-green-100 text-green-700" : el.done > 0 ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-600"
-                                    )}>
-                                      {el.done}/{el.total}
-                                    </span>
-                                    {isDone && <CheckCircle2 size={14} className="text-green-500" />}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            {floor.elements.length === 0 && (
-                              <span className="text-xs text-gray-400 italic">Aucun élément</span>
-                            )}
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-[#EF4444] text-sm">
+                          {task.joursRetard} jr{task.joursRetard > 1 ? 's' : ''} de retard
+                        </span>
+                        {task.joursRetard > 7 ? (
+                          <span className="px-2 py-1 bg-[#EF4444] text-white text-[10px] font-bold rounded">CRITIQUE</span>
+                        ) : (
+                          <span className="px-2 py-1 bg-[#F97316] text-white text-[10px] font-bold rounded">ATTENTION</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center space-y-2 py-8">
+                  <CheckCircle2 size={40} className="text-[#22C55E]" />
+                  <p className="text-[#22C55E] font-medium text-sm">✅ Aucun retard</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* LIGNE 4 : AVANCEMENT PAR ÉTAGE */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#1E293B]">
+            <Layers className="text-[#1E293B]" size={20} />
+            Avancement par Étage
+          </h3>
+          
+          {stats.progressByFloor.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {stats.progressByFloor.map(floor => (
+                <div key={floor.id} className="p-5 rounded-xl border border-gray-100 bg-[#F8FAFC]">
+                  <h4 className="font-bold text-sm mb-4 text-[#1E293B] uppercase">
+                    {floor.blockName} — {floor.floorName}
+                  </h4>
+                  <div className="space-y-4">
+                    {floor.elements.map((el, i) => {
+                      const pct = el.total > 0 ? Math.round((el.done / el.total) * 100) : 0;
+                      const barColor = pct === 100 ? 'bg-[#22C55E]' : pct > 0 ? 'bg-[#F97316]' : 'bg-[#9CA3AF]';
+                      return (
+                        <div key={i} className="flex flex-col text-sm">
+                          <div className="flex justify-between font-medium mb-1">
+                            <span className="text-gray-700">{el.type}</span>
+                            <span className={pct === 100 ? "text-[#22C55E]" : "text-gray-500"}>{el.done} / {el.total}</span>
+                          </div>
+                          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }}></div>
                           </div>
                         </div>
-                      ))}
-                      {block.floors.length === 0 && (
-                        <p className="text-sm text-gray-400 italic pl-6">Aucun étage défini pour ce bloc.</p>
-                      )}
-                    </div>
-                  )}
+                      )
+                    })}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* SECTION 3 : PROGRESS BY ELEMENT TYPE (BAR CHART) */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-bold text-[#001F3F] flex items-center gap-2">
-              <Layers className="text-[#FF851B]" size={20} />
-              Avancement par Type
-            </h3>
-            <select
-              value={selectedElementBlock}
-              onChange={(e) => setSelectedElementBlock(e.target.value)}
-              className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-[#001F3F] focus:outline-none focus:ring-2 focus:ring-[#FF851B]/50"
-            >
-              <option value="all">Tous les blocs</option>
-              {stats.progressByBlock.map(b => (
-                <option key={b.id} value={b.name}>{b.name}</option>
               ))}
-            </select>
-          </div>
-          <div className="h-[400px] w-full flex-grow">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={selectedElementBlock === 'all' 
-                  ? stats.progressByElementType.all 
-                  : (stats.progressByElementType.byBlock[selectedElementBlock] || [])}
-                layout="vertical"
-                margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                <XAxis type="number" domain={[0, 100]} hide />
-                <YAxis dataKey="type" type="category" axisLine={false} tickLine={false} tick={{ fill: '#4B5563', fontSize: 12, fontWeight: 500 }} width={100} />
-                <Tooltip 
-                  cursor={{ fill: '#F9FAFB' }}
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const val = payload[0].value as number;
-                      return (
-                        <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-100">
-                          <p className="font-bold text-[#001F3F] mb-1">{payload[0].payload.type}</p>
-                          <p className="text-[#FF851B] font-bold text-lg">{Math.round(val)}% terminé</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar 
-                  dataKey="progress" 
-                  radius={[0, 4, 4, 0]} 
-                  barSize={24}
-                >
-                  {(selectedElementBlock === 'all' ? stats.progressByElementType.all : (stats.progressByElementType.byBlock[selectedElementBlock] || [])).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={Math.round(entry.progress) === 100 ? '#3D9970' : '#FF851B'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+            </div>
+          ) : (
+            <p className="italic text-gray-400 py-8 text-center">Aucune donnée d'étage disponible.</p>
+          )}
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* SECTION 4 : DELAYED / CRITICAL TASKS */}
+        {/* LIGNE 5 : PRODUCTIVITÉ DES ÉQUIPES */}
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="text-lg font-bold text-[#001F3F] mb-6 flex items-center gap-2">
-            <Clock className="text-red-500" size={20} />
-            Suivi des Retards (Top 10)
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#1E293B]">
+            <Users className="text-[#1E293B]" size={20} />
+            Productivité des Équipes
           </h3>
-          <div className="overflow-x-auto flex-grow">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Élément / Tâche</th>
-                  <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Bloc</th>
-                  <th className="text-right py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Retard</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {stats.delayedTasksList.length > 0 ? (
-                  stats.delayedTasksList.slice(0, 10).map((task, idx) => (
-                    <tr key={task.id || idx} className="hover:bg-red-50/30 transition-colors">
-                      <td className="py-3 px-4">
-                        <span className="font-medium text-[#001F3F]">{task.element}</span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded-md">{task.block}</span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {task.delay > 7 && (
-                            <span className="text-[10px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded uppercase tracking-wider">
-                              Critique
-                            </span>
-                          )}
-                          <span className="font-bold text-red-500">
-                            {task.delay} jour{task.delay > 1 ? 's' : ''}
-                          </span>
+          {stats.teamProductivity.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-gray-500">
+                    <th className="pb-3 px-4 font-medium">Bloc</th>
+                    <th className="pb-3 px-4 font-medium">Équipe</th>
+                    <th className="pb-3 px-4 font-medium text-center">Ouvriers</th>
+                    <th className="pb-3 px-4 font-medium text-center">Tâches Term./Assig.</th>
+                    <th className="pb-3 px-4 font-medium">Productivité</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {stats.teamProductivity.map((team, idx) => (
+                    <tr key={idx} className="hover:bg-[#F8FAFC]">
+                      <td className="py-4 px-4">{team.block}</td>
+                      <td className="py-4 px-4 font-bold text-[#1E293B]">{team.team}</td>
+                      <td className="py-4 px-4 text-center">{team.workers}</td>
+                      <td className="py-4 px-4 text-center">{team.completed} / {team.assigned}</td>
+                      <td className="py-4 px-4 min-w-[200px]">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${team.productivity >= 75 ? 'bg-[#22C55E]' : team.productivity >= 50 ? 'bg-[#F97316]' : 'bg-[#EF4444]'}`}
+                              style={{width: `${team.productivity}%`}}
+                            />
+                          </div>
+                          <span className="font-bold text-xs w-10 text-right text-[#1E293B]">{team.productivity}%</span>
                         </div>
                       </td>
                     </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={3} className="py-8 text-center text-gray-400 italic">
-                      Aucun retard détecté sur le planning.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="italic text-gray-400 py-8 text-center">Aucune donnée de productivité cette semaine</p>
+          )}
         </div>
 
-        {/* SECTION 5 : TEAM PRODUCTIVITY */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="text-lg font-bold text-[#001F3F] mb-6 flex items-center gap-2">
-            <Users className="text-[#FF851B]" size={20} />
-            Productivité des Équipes
+        {/* LIGNE 6 : COURBE D'AVANCEMENT CUMULÉ */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col relative overflow-hidden">
+          <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-[#1E293B] z-10">
+            <TrendingUp className="text-[#F97316]" size={20} />
+            Courbe d'Avancement Cumulé (30 derniers jours)
           </h3>
-          <div className="overflow-x-auto flex-grow">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="px-6 py-4 font-bold text-left text-xs text-gray-500 uppercase">Bloc</th>
-                  <th className="px-6 py-4 font-bold text-left text-xs text-gray-500 uppercase">Équipe</th>
-                  <th className="px-6 py-4 font-bold text-center text-xs text-gray-500 uppercase">Ouvriers</th>
-                  <th className="px-6 py-4 font-bold text-center text-xs text-gray-500 uppercase">Tâches Term./Assig.</th>
-                  <th className="px-6 py-4 font-bold text-left text-xs text-gray-500 uppercase">Productivité</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {stats.teamProductivity.map((team, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-sm font-medium">{team.block}</td>
-                    <td className="px-6 py-4 text-sm font-bold text-[#001F3F]">{team.team}</td>
-                    <td className="px-6 py-4 text-sm text-center">{team.workers}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className="font-bold">{team.completed}</span>
-                    <span className="text-gray-400"> / {team.assigned}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden max-w-[100px]">
-                        <div 
-                          className={cn(
-                            "h-full rounded-full",
-                            team.productivity > 80 ? "bg-green-500" : team.productivity > 50 ? "bg-yellow-500" : "bg-red-500"
-                          )}
-                          style={{ width: `${team.productivity}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-black">{Math.round(team.productivity)}%</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {stats.progressOverTime.length > 0 ? (
+            <div className="w-full h-[300px] z-10">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.progressOverTime} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorProgress" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F97316" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#F97316" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                  <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fontSize: 12, fill: '#64748b'}} axisLine={false} tickLine={false} tickFormatter={(val) => `${val}%`} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: number) => [`${value}%`, 'Avancement cumulé']}
+                  />
+                  <Area type="monotone" dataKey="globalProgress" stroke="#F97316" strokeWidth={3} fillOpacity={1} fill="url(#colorProgress)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="italic text-gray-400 py-8 text-center z-10">Aucune donnée d'avancement disponible.</p>
+          )}
         </div>
+
       </div>
-
-      {/* SECTION 5 : FLOOR PROGRESS (NEW CHARTS) */}
-      {stats.progressByFloor.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold flex items-center gap-2 text-[#001F3F]">
-            <Layers size={24} className="text-[#FF851B]" />
-            Avancement par Étage
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stats.progressByFloor.map((floor, idx) => (
-              <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col h-[400px]">
-                <h3 className="text-lg font-bold text-center mb-4 text-[#001F3F]">{floor.floorName.toUpperCase()}</h3>
-                <div className="flex-1 w-full h-full min-h-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      layout="vertical"
-                      data={floor.elements}
-                      margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                      <XAxis 
-                        type="number" 
-                        domain={[0, 100]} 
-                        tickFormatter={(val) => `${val}%`}
-                        tick={{fontSize: 12}}
-                      />
-                      <YAxis 
-                        type="category" 
-                        dataKey="type" 
-                        width={120} 
-                        tick={{fontSize: 11, fill: '#4B5563'}}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip 
-                        formatter={(value: number) => [`${Math.round(value)}%`, 'Avancement']}
-                        cursor={{fill: '#F3F4F6'}}
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Bar 
-                        dataKey="progress" 
-                        fill="#00B050" // A green matching the screenshot
-                        radius={[0, 4, 4, 0]} 
-                        barSize={12}
-                        background={{ fill: '#F3F4F6', radius: [0, 4, 4, 0] }}
-                      >
-                        {floor.elements.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.progress > 0 ? '#00B050' : '#4FA0E0'} /> 
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-    </div>
-  );
-}
-
-function StatCard({ title, value, icon: Icon, color, progress, subtitle }: any) {
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between relative overflow-hidden group">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
-          <h4 className="text-3xl font-black text-[#001F3F]">{value}</h4>
-        </div>
-        <div className={cn("p-3 rounded-xl text-white shadow-lg transition-transform group-hover:scale-110", color)}>
-          <Icon size={24} />
-        </div>
-      </div>
-      {progress !== undefined ? (
-        <div className="space-y-2">
-          <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-              className="h-full bg-[#FF851B]"
-            />
-          </div>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Progression globale</p>
-        </div>
-      ) : (
-        <p className="text-xs text-gray-400 font-medium">{subtitle || "Mis à jour en temps réel"}</p>
-      )}
     </div>
   );
 }

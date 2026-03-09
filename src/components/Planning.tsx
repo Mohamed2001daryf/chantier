@@ -91,10 +91,18 @@ export default function Planning() {
     surface: ''
   });
 
-  const [viewDate, setViewDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const [viewStartDate, setViewStartDate] = useState(() => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - 30);
+    return d;
+  });
   const [selectedBlockFilter, setSelectedBlockFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ganttScrollRef = useRef<HTMLDivElement>(null);
+  const leftTableScrollRef = useRef<HTMLDivElement>(null);
 
   // Import states
   const [importStatus, setImportStatus] = useState<ImportStatus>('idle');
@@ -404,16 +412,55 @@ export default function Planning() {
     return true;
   });
 
-  // Gantt Chart Logic
-  const daysToShow = 21; // 3 weeks
+  // Gantt Chart Logic (MS Project Style)
+  const COL_WIDTH = 32; // px par jour
+  const daysToShow = 90; // 30 before, 60 after
   const timelineDays = eachDayOfInterval({
-    start: viewDate,
-    end: addDays(viewDate, daysToShow - 1)
+    start: viewStartDate,
+    end: addDays(viewStartDate, daysToShow - 1)
   });
 
+  // Group days by Month for Header 1
+  const months: { name: string; colSpan: number }[] = [];
+  let currentMonth = '';
+  let colSpan = 0;
+  timelineDays.forEach(day => {
+    const m = format(day, 'MMMM yyyy', { locale: fr });
+    const Name = m.charAt(0).toUpperCase() + m.slice(1);
+    if (Name !== currentMonth) {
+      if (currentMonth) months.push({ name: currentMonth, colSpan });
+      currentMonth = Name;
+      colSpan = 1;
+    } else {
+      colSpan++;
+    }
+  });
+  if (currentMonth) months.push({ name: currentMonth, colSpan });
+
+  const handleScrollToToday = () => {
+    if (ganttScrollRef.current) {
+      const offsetDays = differenceInDays(today, viewStartDate);
+      const scrollPos = Math.max(0, offsetDays * COL_WIDTH - ganttScrollRef.current.clientWidth / 2);
+      ganttScrollRef.current.scrollTo({ left: scrollPos, behavior: 'smooth' });
+    }
+  };
+
+  const syncScrollLeftToRight = (e: React.UIEvent<HTMLDivElement>) => {
+    if (ganttScrollRef.current) {
+      ganttScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  };
+
+  const syncScrollRightToLeft = (e: React.UIEvent<HTMLDivElement>) => {
+    if (leftTableScrollRef.current) {
+      leftTableScrollRef.current.scrollTop = e.currentTarget.scrollTop;
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+    <div className="space-y-6 flex flex-col h-[calc(100vh-100px)]">
+      {/* HEADER BAR */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 shrink-0">
         <div>
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Planning Chantier</h2>
           <p className="text-gray-500 text-sm sm:text-base">Gérez le calendrier des travaux et importez vos plannings MS Project / Excel.</p>
@@ -459,27 +506,32 @@ export default function Planning() {
         </div>
       </div>
 
-      {/* Gantt View */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-4 bg-gray-50/50">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setViewDate(addDays(viewDate, -7))} className="p-2 hover:bg-white rounded-lg border border-gray-200 transition-colors">
+      {/* GANTT VIEW MS PROJECT */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col flex-1 overflow-hidden min-h-0">
+        
+        {/* Gantt Tools Bar */}
+        <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50 shrink-0">
+          <div className="flex items-center gap-2">
+            <button onClick={() => setViewStartDate(addDays(viewStartDate, -7))} className="p-2 hover:bg-white rounded-lg border border-gray-200 transition-colors text-gray-600">
               <ChevronLeft size={20} />
             </button>
-            <span className="font-bold text-[#001F3F] min-w-[200px] text-center">
-              Semaine du {format(viewDate, 'dd MMMM yyyy', { locale: fr })}
-            </span>
-            <button onClick={() => setViewDate(addDays(viewDate, 7))} className="p-2 hover:bg-white rounded-lg border border-gray-200 transition-colors">
+            <button 
+              onClick={handleScrollToToday}
+              className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-[#001F3F] font-bold hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              Aujourd'hui
+            </button>
+            <button onClick={() => setViewStartDate(addDays(viewStartDate, 7))} className="p-2 hover:bg-white rounded-lg border border-gray-200 transition-colors text-gray-600">
               <ChevronRight size={20} />
             </button>
           </div>
 
           <div className="flex items-center gap-3">
-            <label className="text-sm font-bold text-gray-500 uppercase tracking-wider">Filtrer par Bloc:</label>
+            <label className="text-sm font-bold text-gray-500 uppercase tracking-wider hidden md:block">Filtrer :</label>
             <select 
               value={selectedBlockFilter} 
               onChange={(e) => setSelectedBlockFilter(e.target.value)}
-              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-2 rounded-xl font-bold text-sm focus:ring-2 focus:ring-[#FF851B] outline-none transition-all"
+              className="bg-white border border-gray-200 text-[#001F3F] px-3 py-1.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-[#FF851B] outline-none"
             >
               <option value="all">Tous les blocs</option>
               {blocks.map(block => (
@@ -491,135 +543,201 @@ export default function Planning() {
               placeholder="Rechercher..." 
               value={searchQuery} 
               onChange={e => setSearchQuery(e.target.value)} 
-              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-2 rounded-xl text-sm focus:ring-2 focus:ring-[#FF851B] outline-none transition-all w-[180px]" 
+              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-1.5 rounded-xl text-sm focus:ring-2 focus:ring-[#FF851B] outline-none w-[150px] md:w-[200px]" 
             />
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider text-gray-400">
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> En cours</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-sm"></div> Terminé</div>
-            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-gray-300 rounded-sm"></div> Non commencé</div>
+          <div className="flex items-center gap-4 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#3B82F6] rounded-sm shadow-sm"></div> En cours</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#22C55E] rounded-sm shadow-sm"></div> Terminé</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-[#CBD5E1] rounded-sm shadow-sm"></div> Non commencé</div>
           </div>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-          <div className="min-w-[1200px]">
-            {/* Header */}
-            <div className="flex border-b border-gray-100">
-              <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white z-[11] flex items-center justify-center">
-                {role !== 'viewer' && (
-                  <input 
-                    type="checkbox" 
-                    checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
-                  />
-                )}
-              </div>
-              <div className="w-64 p-4 font-bold text-xs uppercase text-gray-400 border-r border-gray-100 sticky left-12 bg-white z-10">Tâche / Élément</div>
-              <div className="flex-1 flex">
-                {timelineDays.map((day, i) => (
-                  <div key={i} className={cn(
-                    "flex-1 p-2 text-center border-r border-gray-50",
-                    (day.getDay() === 0 || day.getDay() === 6) ? "bg-gray-50/50" : ""
-                  )}>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">{format(day, 'EEE', { locale: fr })}</p>
-                    <p className={cn("text-xs font-black", isSameDay(day, new Date()) ? "text-[#FF851B]" : "text-[#001F3F]")}>
-                      {format(day, 'dd')}
-                    </p>
-                  </div>
-                ))}
-              </div>
+        {/* SPLIT LAYOUT TABLE + GANTT GRID */}
+        <div className="flex-1 overflow-hidden flex relative bg-white">
+          
+          {/* LEFT TABLE */}
+          <div className="w-[350px] md:w-[450px] lg:w-[500px] flex-shrink-0 border-r border-gray-200 flex flex-col z-20 shadow-[2px_0_10px_rgba(0,0,0,0.03)] bg-white">
+            
+            {/* Headers Left */}
+            <div className="flex bg-gray-50 border-b border-gray-200 text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0" style={{ height: '72px' }}>
+              {role !== 'viewer' && (
+                <div className="w-10 flex items-center justify-center border-r border-gray-200 shrink-0">
+                  <input type="checkbox" checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length} onChange={toggleSelectAll} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"/>
+                </div>
+              )}
+              <div className="flex-1 p-2 flex items-center border-r border-gray-200 min-w-[120px]">Tâche</div>
+              <div className="w-16 md:w-20 p-2 flex items-center border-r border-gray-200 truncate hidden md:flex">Bloc</div>
+              <div className="w-16 p-2 flex items-center border-r border-gray-200 truncate">Début</div>
+              <div className="w-16 p-2 flex items-center border-r border-gray-200 truncate">Fin</div>
+              <div className="w-12 md:w-16 p-2 flex items-center truncate">Durée</div>
             </div>
 
-            {/* Rows */}
-            <div className="divide-y divide-gray-50">
-              {filteredTasks.map((task) => {
+            {/* Rows Left Scrollable */}
+            <div 
+              className="flex-1 overflow-y-auto no-scrollbar" 
+              ref={leftTableScrollRef} 
+              onScroll={syncScrollLeftToRight}
+            >
+              {filteredTasks.map((task, i) => {
                 const start = parseISO(task.start_date);
                 const end = parseISO(task.end_date);
-                
+                const duration = Math.abs(differenceInDays(end, start)) + 1;
                 return (
-                  <div key={task.id} className="flex group hover:bg-gray-50/50 transition-colors">
-                    <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white group-hover:bg-gray-50/50 z-[11] flex items-center justify-center">
-                      {role !== 'viewer' && (
-                        <input 
-                          type="checkbox" 
-                          checked={selectedIds.includes(task.id)}
-                          onChange={() => toggleSelectTask(task.id)}
-                          className="w-4 h-4 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"
-                        />
-                      )}
-                    </div>
-                    <div className="w-64 p-4 border-r border-gray-100 sticky left-12 bg-white group-hover:bg-gray-50/50 z-10 flex justify-between items-center">
-                      <div className={cn("flex-1", role !== 'viewer' && "cursor-pointer")} onClick={() => {
-                        if (role === 'viewer') return;
-                        setSelectedTask(task);
-                        setFormData({
-                          block_id: task.block_id?.toString() || '',
-                          floor_id: task.floor_id?.toString() || '',
-                          element: task.element,
-                          description: task.description,
-                          start_date: task.start_date,
-                          end_date: task.end_date,
-                          status: task.status,
-                          element_type: normalizeElementType(task.element_type),
-                          axes: task.axes || '',
-                          surface: task.surface?.toString() || ''
-                        });
-                        setIsEditModalOpen(true);
-                      }}>
-                        <p className="font-bold text-sm text-[#001F3F] truncate">{task.element}</p>
-                        <p className="text-[10px] text-gray-400">{task.block_name || 'Général'} • {task.floor_name || 'N/A'}</p>
+                  <div key={task.id} className="flex h-10 border-b border-gray-100 hover:bg-gray-50/80 transition-colors text-xs text-[#001F3F] group">
+                    {role !== 'viewer' && (
+                      <div className="w-10 flex items-center justify-center border-r border-gray-100 shrink-0">
+                        <input type="checkbox" checked={selectedIds.includes(task.id)} onChange={() => toggleSelectTask(task.id)} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"/>
                       </div>
-                      {role !== 'viewer' && (
-                        <button onClick={() => {
+                    )}
+                    <div className="flex-1 p-2 border-r border-gray-100 flex items-center justify-between min-w-[120px] bg-white group-hover:bg-gray-50/80">
+                      <span 
+                        className={cn("font-bold truncate", role !== 'viewer' && "cursor-pointer hover:underline")}
+                        onClick={() => {
+                          if (role === 'viewer') return;
                           setSelectedTask(task);
-                          setIsDeleteConfirmOpen(true);
-                        }} className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600 transition-all">
-                          <Trash2 size={14} />
+                          setFormData({
+                            block_id: task.block_id?.toString() || '',
+                            floor_id: task.floor_id?.toString() || '',
+                            element: task.element,
+                            description: task.description,
+                            start_date: task.start_date,
+                            end_date: task.end_date,
+                            status: task.status,
+                            element_type: task.element_type || '',
+                            axes: task.axes || '',
+                            surface: task.surface?.toString() || ''
+                          });
+                          setIsEditModalOpen(true);
+                        }}
+                      >{task.element}</span>
+                      {role !== 'viewer' && (
+                        <button onClick={() => { setSelectedTask(task); setIsDeleteConfirmOpen(true); }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
+                          <Trash2 size={12} />
                         </button>
                       )}
                     </div>
-                    <div className="flex-1 flex relative h-16 items-center">
-                      {timelineDays.map((day, i) => (
-                        <div key={i} className={cn(
-                          "flex-1 h-full border-r border-gray-50/30",
-                          (day.getDay() === 0 || day.getDay() === 6) ? "bg-gray-50/20" : ""
-                        )}></div>
-                      ))}
-                      
-                      {/* Task Bar */}
-                      {(() => {
-                        const taskStart = parseISO(task.start_date);
-                        const taskEnd = parseISO(task.end_date);
-                        
-                        // Calculate offset and width relative to timeline
-                        const offsetDays = differenceInDays(taskStart, viewDate);
-                        const durationDays = differenceInDays(taskEnd, taskStart) + 1;
-                        
-                        if (offsetDays + durationDays < 0 || offsetDays >= daysToShow) return null;
-                        
-                        const left = Math.max(0, (offsetDays / daysToShow) * 100);
-                        const width = Math.min(100 - left, (durationDays / daysToShow) * 100);
-                        
-                        return (
-                          <motion.div 
-                            initial={{ opacity: 0, scaleX: 0 }}
-                            animate={{ opacity: 1, scaleX: 1 }}
-                            style={{ left: `${left}%`, width: `${width}%` }}
-                            className={cn(
-                              "absolute h-8 rounded-lg shadow-sm flex items-center px-3 overflow-hidden cursor-pointer hover:brightness-110 transition-all",
-                              task.status === 'Terminé' ? "bg-green-500" : task.status === 'En cours' ? "bg-blue-500" : "bg-gray-300"
-                            )}
-                          >
-                            <span className="text-[10px] font-bold text-white truncate">{task.description}</span>
-                          </motion.div>
-                        );
-                      })()}
-                    </div>
+                    <div className="w-16 md:w-20 p-2 border-r border-gray-100 flex items-center truncate text-gray-500 hidden md:flex">{task.block_name || '-'}</div>
+                    <div className="w-16 p-2 border-r border-gray-100 flex items-center truncate text-gray-600">{format(start, 'dd/MM')}</div>
+                    <div className="w-16 p-2 border-r border-gray-100 flex items-center truncate text-gray-600">{format(end, 'dd/MM')}</div>
+                    <div className="w-12 md:w-16 p-2 flex items-center font-bold text-gray-700">{duration} j</div>
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* RIGHT GANTT */}
+          <div 
+            className="flex-1 overflow-auto bg-white relative no-scrollbar"
+            ref={ganttScrollRef}
+            onScroll={syncScrollRightToLeft}
+          >
+            <div style={{ width: `${timelineDays.length * COL_WIDTH}px` }} className="min-w-max">
+              
+              {/* Timeline Headers (Sticky Top) */}
+              <div className="sticky top-0 z-[15] bg-white pointer-events-none">
+                {/* Ligne 1 : Mois */}
+                <div className="flex h-9 border-b border-gray-200 bg-gray-50 shadow-sm relative z-20">
+                  {months.map((m, i) => (
+                    <div key={i} className="flex border-r border-gray-200 items-center pl-3" style={{ width: `${m.colSpan * COL_WIDTH}px` }}>
+                      <span className="text-xs font-bold text-gray-600 tracking-wide sticky left-2">{m.name}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Ligne 2 : Jours */}
+                <div className="flex h-9 text-[10px] bg-white border-b border-gray-200 shadow-sm relative z-20">
+                  {timelineDays.map((day, i) => {
+                    const isWE = day.getDay() === 0 || day.getDay() === 6;
+                    const isToday = isSameDay(day, today);
+                    return (
+                      <div key={i} className={cn(
+                        "flex flex-col items-center justify-center border-r border-gray-100 shrink-0",
+                        isToday ? "bg-[#FFF7ED]" : isWE ? "bg-[#F8FAFC]" : ""
+                      )} style={{ width: `${COL_WIDTH}px` }}>
+                        <span className={isToday ? "text-[#F97316] font-bold" : "text-gray-400"}>{format(day, 'E', {locale: fr}).charAt(0).toUpperCase()}</span>
+                        <span className={isToday ? "text-[#F97316] font-black" : "text-gray-600 font-medium"}>{format(day, 'dd')}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Vertical Today Line & Weekend Backgrounds (Absolute over entire grid) */}
+              <div className="absolute top-[72px] bottom-0 left-0 flex pointer-events-none z-0" style={{ width: `${timelineDays.length * COL_WIDTH}px` }}>
+                {timelineDays.map((day, i) => {
+                  const isWE = day.getDay() === 0 || day.getDay() === 6;
+                  const isToday = isSameDay(day, today);
+                  return (
+                    <div key={i} className={cn(
+                      "h-full border-r border-dashed border-gray-100/50 shrink-0 relative",
+                      isWE ? "bg-[#F8FAFC]/50" : ""
+                    )} style={{ width: `${COL_WIDTH}px` }}>
+                      {isToday && <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-red-400" style={{ transform: 'translateX(-50%)' }}></div>}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Gantt Task Bars */}
+              <div className="relative z-10">
+                {filteredTasks.map((task) => {
+                  const tStart = parseISO(task.start_date);
+                  const tEnd = parseISO(task.end_date);
+                  
+                  const offsetDays = differenceInDays(tStart, viewStartDate);
+                  const durationDays = differenceInDays(tEnd, tStart) + 1;
+                  
+                  // Calcul en pixels
+                  const barLeft = offsetDays * COL_WIDTH;
+                  const barWidth = Math.max(durationDays * COL_WIDTH, COL_WIDTH); // minimum 1 jour (1 colonne)
+
+                  let bgColor = '#CBD5E1'; // non_commence gris clair
+                  if (task.status === 'En cours') bgColor = '#3B82F6';
+                  if (task.status === 'Terminé') bgColor = '#22C55E';
+
+                  const isVisible = (barLeft + barWidth > 0) && (barLeft < timelineDays.length * COL_WIDTH);
+
+                  return (
+                    <div key={task.id} className="h-10 border-b border-gray-50 flex items-center relative hover:bg-amber-50/20 w-full group">
+                      {isVisible && (
+                        <div 
+                          className="absolute h-[22px] rounded md:rounded-md shadow-sm overflow-hidden flex items-center px-2 cursor-pointer transition-all hover:brightness-110 hover:shadow-md"
+                          style={{
+                            left: `${Math.max(0, barLeft)}px`,
+                            width: `${Math.min(barWidth, barWidth + barLeft)}px`, 
+                            backgroundColor: bgColor
+                          }}
+                          onClick={() => {
+                            if (role === 'viewer') return;
+                            setSelectedTask(task);
+                            setFormData({
+                              block_id: task.block_id?.toString() || '',
+                              floor_id: task.floor_id?.toString() || '',
+                              element: task.element,
+                              description: task.description,
+                              start_date: task.start_date,
+                              end_date: task.end_date,
+                              status: task.status,
+                              element_type: task.element_type || '',
+                              axes: task.axes || '',
+                              surface: task.surface?.toString() || ''
+                            });
+                            setIsEditModalOpen(true);
+                          }}
+                          title={`${task.element} - ${task.status} (${durationDays} jours)`}
+                        >
+                          <span className="text-[10px] md:text-xs font-bold text-white whitespace-nowrap overflow-hidden text-ellipsis drop-shadow-sm select-none">
+                            {task.element}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
             </div>
           </div>
         </div>
