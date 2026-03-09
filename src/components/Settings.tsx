@@ -76,22 +76,24 @@ export default function Settings() {
     try {
       await inviteProjectMember(inviteEmail, inviteRole);
       const roleName = ROLES.find(r => r.value === inviteRole)?.label || inviteRole;
-      showMessage('success', `Invitation envoyée à ${inviteEmail} (rôle: ${roleName})`);
 
-      // Open email client with pre-filled invitation
+      // Send invitation email automatically
       const siteUrl = window.location.origin;
       const ownerName = user?.user_metadata?.full_name || user?.email || 'Le chef de projet';
-      const subject = encodeURIComponent(`Invitation ChantierPro - Rejoignez le projet`);
-      const body = encodeURIComponent(
-        `Bonjour,\n\n` +
-        `${ownerName} vous invite à rejoindre son projet sur ChantierPro avec le rôle "${roleName}".\n\n` +
-        `Pour accéder au projet :\n` +
-        `1. Allez sur ${siteUrl}\n` +
-        `2. Créez un compte avec cet email : ${inviteEmail}\n` +
-        `3. Vous aurez automatiquement accès au projet\n\n` +
-        `Cordialement,\nChantierPro`
-      );
-      window.open(`mailto:${inviteEmail}?subject=${subject}&body=${body}`, '_blank');
+      try {
+        const res = await fetch('/api/send-invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: inviteEmail, ownerName, role: roleName, siteUrl })
+        });
+        if (res.ok) {
+          showMessage('success', `✅ Email d'invitation envoyé à ${inviteEmail} (rôle: ${roleName})`);
+        } else {
+          showMessage('success', `Membre ajouté (${roleName}). L'email n'a pas pu être envoyé automatiquement.`);
+        }
+      } catch {
+        showMessage('success', `Membre ajouté (${roleName}). Configurez RESEND_API_KEY pour l'envoi automatique.`);
+      }
 
       setInviteEmail('');
       await loadMembers();
