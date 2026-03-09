@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Filter, CheckCircle2, Circle, Loader2, X, Save, Layers } from 'lucide-react';
+import { Plus, Search, Filter, CheckCircle2, Circle, Loader2, X, Save, Layers, Trash2, Pencil } from 'lucide-react';
 import { Block, Floor, Slab } from '../types';
 import { STATUS_OPTIONS, cn } from '../utils';
 import { motion } from 'motion/react';
-import { fetchSlabs as loadSlabs, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createSlab, updateSlabStatus } from '../lib/supabaseService';
+import { fetchSlabs as loadSlabs, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createSlab, updateSlabStatus, deleteSlab, updateSlab } from '../lib/supabaseService';
 
 export default function DallesPostTension() {
   const [slabs, setSlabs] = useState<Slab[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingSlabId, setEditingSlabId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ 
     block_id: '', 
     floor_id: '', 
@@ -30,16 +32,58 @@ export default function DallesPostTension() {
   const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
   const fetchFloors = async () => { setFloors(await loadFloors()); };
 
+  const resetForm = () => {
+    setFormData({ 
+      block_id: '', floor_id: '', name: '', axes: '', surface: '',
+      start_date: new Date().toISOString().split('T')[0],
+      end_date: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]
+    });
+    setIsEditMode(false);
+    setEditingSlabId(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createSlab({
-      ...formData,
-      block_id: parseInt(formData.block_id),
-      floor_id: parseInt(formData.floor_id),
-      surface: parseFloat(formData.surface)
-    });
+    if (isEditMode && editingSlabId) {
+      await updateSlab(editingSlabId, {
+        ...formData,
+        block_id: parseInt(formData.block_id),
+        floor_id: parseInt(formData.floor_id),
+        surface: parseFloat(formData.surface)
+      });
+    } else {
+      await createSlab({
+        ...formData,
+        block_id: parseInt(formData.block_id),
+        floor_id: parseInt(formData.floor_id),
+        surface: parseFloat(formData.surface)
+      });
+    }
     await fetchSlabs();
     setIsModalOpen(false);
+    resetForm();
+  };
+
+  const handleEdit = (slab: Slab) => {
+    setFormData({
+      block_id: slab.block_id?.toString() || '',
+      floor_id: slab.floor_id?.toString() || '',
+      name: slab.name || '',
+      axes: slab.axes || '',
+      surface: slab.surface?.toString() || '',
+      start_date: slab.start_date || new Date().toISOString().split('T')[0],
+      end_date: slab.end_date || new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]
+    });
+    setEditingSlabId(slab.id);
+    setIsEditMode(true);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (confirm('Voulez-vous vraiment supprimer cette dalle ? Cela supprimera également la tâche de planning associée.')) {
+      await deleteSlab(id);
+      await fetchSlabs();
+    }
   };
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
@@ -65,7 +109,7 @@ export default function DallesPostTension() {
           <p className="text-gray-500 text-sm sm:text-base">Suivi des étapes spécifiques aux dalles PT.</p>
         </div>
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
         >
           <Plus size={18} />
@@ -91,13 +135,27 @@ export default function DallesPostTension() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right mr-4">
+              <div className="flex items-center gap-3">
+                <div className="text-right mr-2">
                   <p className="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Avancement</p>
                   <p className="text-lg font-black text-[#001F3F]">
                     {Math.round((STAGES.filter(s => (slab as any)[s.key] === 'Terminé').length / STAGES.length) * 100)}%
                   </p>
                 </div>
+                <button 
+                  onClick={() => handleEdit(slab)}
+                  className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                  title="Modifier la dalle"
+                >
+                  <Pencil size={18} />
+                </button>
+                <button 
+                  onClick={() => handleDelete(slab.id)}
+                  className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                  title="Supprimer la dalle"
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
             </div>
 
@@ -124,8 +182,8 @@ export default function DallesPostTension() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
           >
             <div className="bg-[#001F3F] p-6 text-white flex justify-between items-center">
-              <h3 className="text-xl font-bold">Ajouter une Dalle</h3>
-              <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/10 p-1 rounded transition-colors">
+              <h3 className="text-xl font-bold">{isEditMode ? 'Modifier la Dalle' : 'Ajouter une Dalle'}</h3>
+              <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="hover:bg-white/10 p-1 rounded transition-colors">
                 <X size={24} />
               </button>
             </div>
@@ -156,19 +214,23 @@ export default function DallesPostTension() {
                 <label className="block text-sm font-bold text-gray-700 mb-1">Axes</label>
                 <input type="text" value={formData.axes} onChange={e => setFormData({ ...formData, axes: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" placeholder="Ex: A-3 / B-4" />
               </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Date début</label>
-                <input required type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Date fin</label>
-                <input required type="date" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" />
-              </div>
+              {!isEditMode && (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Date début</label>
+                    <input required type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Date fin</label>
+                    <input required type="date" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" />
+                  </div>
+                </>
+              )}
               <div className="col-span-2 flex gap-3 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">Annuler</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors">Annuler</button>
                 <button type="submit" className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-[#FF851B] hover:bg-[#E76A00] shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
                   <Save size={20} />
-                  Créer
+                  {isEditMode ? 'Enregistrer' : 'Créer'}
                 </button>
               </div>
             </form>

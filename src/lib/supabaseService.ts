@@ -264,19 +264,15 @@ export const deleteVerticalElement = async (id: number) => {
 };
 
 export const updateVerticalElementStatus = async (id: number, field: string, newStatus: string) => {
-  console.log(`[supabaseService] updateVerticalElementStatus: id=${id}, field=${field}, newStatus=${newStatus}`);
-  
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from('vertical_elements')
     .update({ [field]: newStatus })
     .eq('id', id)
     .select();
   
-  console.log('[supabaseService] Update result:', { data, error, count });
-  
   if (error) {
     console.error('updateVerticalElementStatus error:', error);
-    throw new Error(`Supabase update failed: ${error.message} (code: ${error.code})`);
+    return;
   }
 
   // Sync status with task
@@ -344,6 +340,33 @@ export const updateSlabStatus = async (id: number, field: string, newStatus: str
     await supabase.from('tasks').update({ status: 'En cours' }).eq('slab_id', id);
     await supabase.from('slabs').update({ status: 'En cours' }).eq('id', id);
   }
+};
+
+export const deleteSlab = async (id: number) => {
+  await supabase.from('tasks').delete().eq('slab_id', id);
+  const { error } = await supabase.from('slabs').delete().eq('id', id);
+  if (error) console.error('deleteSlab error:', error);
+};
+
+export const updateSlab = async (id: number, payload: any) => {
+  const { error } = await supabase.from('slabs').update({
+    name: payload.name,
+    block_id: payload.block_id,
+    floor_id: payload.floor_id,
+    axes: payload.axes || null,
+    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
+  }).eq('id', id);
+  if (error) console.error('updateSlab error:', error);
+
+  // Sync with linked task
+  await supabase.from('tasks').update({
+    element: payload.name,
+    description: payload.name,
+    block_id: payload.block_id,
+    floor_id: payload.floor_id,
+    axes: payload.axes || null,
+    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
+  }).eq('slab_id', id);
 };
 
 // ─── PRODUCTIVITY ─────────────────────────────────────────

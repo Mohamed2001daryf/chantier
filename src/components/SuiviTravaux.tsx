@@ -58,16 +58,8 @@ export default function SuiviTravaux() {
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
-    console.log(`[updateStatus] id=${id}, field=${field}, ${currentStatus} → ${nextStatus}`);
-    
-    try {
-      await updateVerticalElementStatus(id, field, nextStatus);
-      console.log('[updateStatus] Success, refreshing elements...');
-      await fetchElements();
-    } catch (err: any) {
-      console.error('[updateStatus] Error:', err);
-      alert(`Erreur lors de la mise à jour: ${err?.message || JSON.stringify(err)}`);
-    }
+    await updateVerticalElementStatus(id, field, nextStatus);
+    await fetchElements();
   };
 
   // Build a map of element_id -> team_name from tasks
