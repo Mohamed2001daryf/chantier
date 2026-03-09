@@ -68,6 +68,13 @@ export interface Task {
   team_name?: string;
 }
 
+export interface ElementType {
+  id: number;
+  user_id: string;
+  name: string;
+  created_at: string;
+}
+
 export interface Team {
   id: number;
   name: string;
