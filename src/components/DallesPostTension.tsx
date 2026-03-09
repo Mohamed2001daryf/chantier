@@ -90,7 +90,7 @@ export default function DallesPostTension() {
   };
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
-    if (role === 'lecture') return;
+    if (role === 'viewer') return;
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
     await updateSlabStatus(id, field, nextStatus);
     await fetchSlabs();
@@ -112,7 +112,7 @@ export default function DallesPostTension() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Dalles Post-Tension</h2>
           <p className="text-gray-500 text-sm sm:text-base">Suivi des étapes spécifiques aux dalles PT.</p>
         </div>
-        {role !== 'lecture' && (
+        {role !== 'viewer' && (
           <button 
             onClick={() => { resetForm(); setIsModalOpen(true); }}
             className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
@@ -164,7 +164,7 @@ export default function DallesPostTension() {
                     {Math.round((STAGES.filter(s => (slab as any)[s.key] === 'Terminé').length / STAGES.length) * 100)}%
                   </p>
                 </div>
-                {role !== 'lecture' && (
+                {role !== 'viewer' && (
                   <>
                     <button 
                       onClick={() => handleEdit(slab)}
@@ -282,13 +282,13 @@ function StatusBadge({ label, status, onClick, role }: { label: string, status: 
   return (
     <button 
       onClick={onClick}
-      disabled={role === 'lecture'}
+      disabled={role === 'viewer'}
       className={cn(
         "flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-1",
-        role !== 'lecture' ? "active:scale-95 hover:border-gray-300" : "cursor-default opacity-80",
+        role !== 'viewer' ? "active:scale-95 hover:border-gray-300" : "cursor-default opacity-80",
         getStatusStyles()
       )}
-      title={role === 'lecture' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
+      title={role === 'viewer' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
     >
       <Icon size={18} className={cn(status === 'En cours' && "animate-spin")} />
       <span className="text-[10px] font-black uppercase tracking-tighter text-center leading-tight">{label}</span>

@@ -50,7 +50,7 @@ export default function GestionEtages() {
           <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Gestion des Étages</h2>
           <p className="text-gray-500 text-sm sm:text-base">Définissez la structure verticale de chaque bloc.</p>
         </div>
-        {role !== 'lecture' && (
+        {role !== 'viewer' && (
           <button 
             onClick={() => setIsModalOpen(true)}
             className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-5 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 self-start sm:self-auto text-sm sm:text-base"
@@ -81,7 +81,7 @@ export default function GestionEtages() {
                       </div>
                       <span className="font-bold text-[#001F3F]">{floor.name}</span>
                     </div>
-                    {role !== 'lecture' && (
+                    {role !== 'viewer' && (
                       <button 
                         onClick={() => handleDelete(floor.id)}
                         className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"

@@ -406,7 +406,7 @@ export default function Planning() {
           <p className="text-gray-500 text-sm sm:text-base">Gérez le calendrier des travaux et importez vos plannings MS Project / Excel.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:gap-3">
-          {selectedIds.length > 0 && role !== 'lecture' && (
+          {selectedIds.length > 0 && role !== 'viewer' && (
             <button 
               onClick={() => setIsBulkDeleteConfirmOpen(true)}
               className="bg-red-50 border border-red-200 text-red-600 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition-all text-sm"
@@ -415,7 +415,7 @@ export default function Planning() {
               Supprimer ({selectedIds.length})
             </button>
           )}
-          {role !== 'lecture' && (
+          {role !== 'viewer' && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.csv,.xml" />
               <button 
@@ -434,7 +434,7 @@ export default function Planning() {
             <Download size={16} />
             Exporter
           </button>
-          {role !== 'lecture' && (
+          {role !== 'viewer' && (
             <button 
               onClick={() => setIsModalOpen(true)}
               className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
@@ -494,7 +494,7 @@ export default function Planning() {
             {/* Header */}
             <div className="flex border-b border-gray-100">
               <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white z-[11] flex items-center justify-center">
-                {role !== 'lecture' && (
+                {role !== 'viewer' && (
                   <input 
                     type="checkbox" 
                     checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length}
@@ -528,7 +528,7 @@ export default function Planning() {
                 return (
                   <div key={task.id} className="flex group hover:bg-gray-50/50 transition-colors">
                     <div className="w-12 p-4 border-r border-gray-100 sticky left-0 bg-white group-hover:bg-gray-50/50 z-[11] flex items-center justify-center">
-                      {role !== 'lecture' && (
+                      {role !== 'viewer' && (
                         <input 
                           type="checkbox" 
                           checked={selectedIds.includes(task.id)}
@@ -538,8 +538,8 @@ export default function Planning() {
                       )}
                     </div>
                     <div className="w-64 p-4 border-r border-gray-100 sticky left-12 bg-white group-hover:bg-gray-50/50 z-10 flex justify-between items-center">
-                      <div className={cn("flex-1", role !== 'lecture' && "cursor-pointer")} onClick={() => {
-                        if (role === 'lecture') return;
+                      <div className={cn("flex-1", role !== 'viewer' && "cursor-pointer")} onClick={() => {
+                        if (role === 'viewer') return;
                         setSelectedTask(task);
                         setFormData({
                           block_id: task.block_id?.toString() || '',
@@ -558,7 +558,7 @@ export default function Planning() {
                         <p className="font-bold text-sm text-[#001F3F] truncate">{task.element}</p>
                         <p className="text-[10px] text-gray-400">{task.block_name || 'Général'} • {task.floor_name || 'N/A'}</p>
                       </div>
-                      {role !== 'lecture' && (
+                      {role !== 'viewer' && (
                         <button onClick={() => {
                           setSelectedTask(task);
                           setIsDeleteConfirmOpen(true);

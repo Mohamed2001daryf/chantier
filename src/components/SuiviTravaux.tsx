@@ -60,7 +60,7 @@ export default function SuiviTravaux() {
   };
 
   const updateStatus = async (id: number, field: string, currentStatus: string) => {
-    if (role === 'lecture') return;
+    if (role === 'viewer') return;
     const nextStatus = STATUS_OPTIONS[(STATUS_OPTIONS.indexOf(currentStatus) + 1) % STATUS_OPTIONS.length];
     await updateVerticalElementStatus(id, field, nextStatus);
     await fetchElements();
@@ -178,7 +178,7 @@ export default function SuiviTravaux() {
                   role={role}
                 />
               </div>
-              {role !== 'lecture' && (
+              {role !== 'viewer' && (
                 <button 
                   onClick={() => handleDelete(el.id)}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors"
@@ -269,13 +269,13 @@ function StatusBadge({ label, status, onClick, role }: { label: string, status: 
   return (
     <button 
       onClick={onClick}
-      disabled={role === 'lecture'}
+      disabled={role === 'viewer'}
       className={cn(
         "flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all",
-        role !== 'lecture' ? "active:scale-95" : "cursor-default opacity-80",
+        role !== 'viewer' ? "active:scale-95" : "cursor-default opacity-80",
         getStatusStyles()
       )}
-      title={role === 'lecture' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
+      title={role === 'viewer' ? "Mode lecture uniquement" : "Cliquez pour changer le statut"}
     >
       <Icon size={14} className={cn(status === 'En cours' && "animate-spin")} />
       <div className="flex flex-col items-start">
