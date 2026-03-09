@@ -119,11 +119,17 @@ export default function Dashboard() {
 
       allTasks.forEach(t => {
         if (t.element_type) {
+          // Normalize names
+          let normalizedType = t.element_type;
+          if (normalizedType.toLowerCase() === 'poteau') normalizedType = 'Poteaux';
+          if (normalizedType.toLowerCase() === 'voile') normalizedType = 'Voiles';
+          if (normalizedType.toLowerCase() === 'dalle') normalizedType = 'Dalles';
+
           // Global
-          const prevAll = elementTypeMapAll.get(t.element_type) || { done: 0, total: 0 };
+          const prevAll = elementTypeMapAll.get(normalizedType) || { done: 0, total: 0 };
           prevAll.total += 1;
           if (t.status === 'Terminé') prevAll.done += 1;
-          elementTypeMapAll.set(t.element_type, prevAll);
+          elementTypeMapAll.set(normalizedType, prevAll);
           
           // By Block
           const blockName = t.block_name || allBlocks.find(b => b.id === t.block_id)?.name || 'Général';
@@ -131,10 +137,10 @@ export default function Dashboard() {
             elementTypeMapByBlock.set(blockName, new Map());
           }
           const blockMap = elementTypeMapByBlock.get(blockName)!;
-          const prevBlock = blockMap.get(t.element_type) || { done: 0, total: 0 };
+          const prevBlock = blockMap.get(normalizedType) || { done: 0, total: 0 };
           prevBlock.total += 1;
           if (t.status === 'Terminé') prevBlock.done += 1;
-          blockMap.set(t.element_type, prevBlock);
+          blockMap.set(normalizedType, prevBlock);
         }
       });
 
