@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle2, Loader2, Mail, Shield, Users, UserPlus, Crown, Eye, Calendar, Construction, X } from 'lucide-react';
+import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle2, Loader2, Mail, Shield, Users, UserPlus, Crown, Eye, Calendar, Construction, X, Copy, Share2, MessageCircle, Link } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../auth/AuthProvider';
 import { motion } from 'motion/react';
@@ -28,6 +28,7 @@ export default function Settings() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('suivi');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [shareModal, setShareModal] = useState<{ email: string; role: string } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -69,6 +70,33 @@ export default function Settings() {
     setLoading(false);
   };
 
+  const getInviteMessage = (emailTo: string, roleName: string) => {
+    const siteUrl = window.location.origin;
+    const ownerName = user?.user_metadata?.full_name || user?.email || 'Le chef de projet';
+    return `Bonjour !\n\n${ownerName} vous invite à rejoindre son projet sur ChantierPro (rôle: ${roleName}).\n\n1. Allez sur ${siteUrl}\n2. Créez un compte avec l'email : ${emailTo}\n3. Vous aurez automatiquement accès au projet\n\nCordialement, ChantierPro`;
+  };
+
+  const handleShareEmail = () => {
+    if (!shareModal) return;
+    const msg = getInviteMessage(shareModal.email, shareModal.role);
+    const subject = encodeURIComponent('Invitation ChantierPro - Rejoignez le projet');
+    const body = encodeURIComponent(msg);
+    window.open(`mailto:${shareModal.email}?subject=${subject}&body=${body}`, '_blank');
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!shareModal) return;
+    const msg = getInviteMessage(shareModal.email, shareModal.role);
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleCopyLink = () => {
+    if (!shareModal) return;
+    const msg = getInviteMessage(shareModal.email, shareModal.role);
+    navigator.clipboard.writeText(msg);
+    showMessage('success', '✅ Message copié !');
+  };
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
@@ -76,26 +104,7 @@ export default function Settings() {
     try {
       await inviteProjectMember(inviteEmail, inviteRole);
       const roleName = ROLES.find(r => r.value === inviteRole)?.label || inviteRole;
-
-      // Send invitation email automatically
-      const siteUrl = window.location.origin;
-      const ownerName = user?.user_metadata?.full_name || user?.email || 'Le chef de projet';
-      try {
-        const res = await fetch('/api/send-invite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: inviteEmail, ownerName, role: roleName, siteUrl })
-        });
-        if (res.ok) {
-          showMessage('success', `✅ Email d'invitation envoyé à ${inviteEmail} (rôle: ${roleName})`);
-        } else {
-          const errData = await res.json().catch(() => ({}));
-          showMessage('success', `Membre ajouté (${roleName}). Email non envoyé: ${errData.error || 'erreur serveur'}`);
-        }
-      } catch {
-        showMessage('success', `Membre ajouté (${roleName}). Email non envoyé (API indisponible).`);
-      }
-
+      setShareModal({ email: inviteEmail, role: roleName });
       setInviteEmail('');
       await loadMembers();
     } catch (err: any) {
@@ -138,6 +147,7 @@ export default function Settings() {
   const getRoleInfo = (role: string) => ROLES.find(r => r.value === role) || ROLES[3];
 
   return (
+    <>
     <div className="space-y-6 max-w-2xl mx-auto">
       <div>
         <h2 className="text-xl sm:text-2xl font-black text-[#001F3F]">Paramètres du Compte</h2>
@@ -362,5 +372,62 @@ export default function Settings() {
         </div>
       </div>
     </div>
+
+      {/* Share Modal */}
+      {shareModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShareModal(null)}>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#001F3F] flex items-center gap-2">
+                <Share2 size={20} className="text-[#FF851B]" />
+                Partager l'invitation
+              </h3>
+              <button onClick={() => setShareModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+              <p className="text-sm text-green-700">
+                ✅ <strong>{shareModal.email}</strong> a été ajouté comme <strong>{shareModal.role}</strong>
+              </p>
+            </div>
+
+            <p className="text-sm text-gray-500">Envoyez-lui l'invitation pour qu'il crée son compte :</p>
+
+            <div className="space-y-2">
+              <button
+                onClick={handleShareWhatsApp}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-[#25D366] hover:bg-[#1DA855] text-white rounded-xl font-bold transition-all active:scale-[0.98]"
+              >
+                <MessageCircle size={20} />
+                Envoyer via WhatsApp
+              </button>
+
+              <button
+                onClick={handleShareEmail}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-[#001F3F] hover:bg-[#003366] text-white rounded-xl font-bold transition-all active:scale-[0.98]"
+              >
+                <Mail size={20} />
+                Envoyer par Email
+              </button>
+
+              <button
+                onClick={() => { handleCopyLink(); setShareModal(null); }}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-all active:scale-[0.98]"
+              >
+                <Copy size={20} />
+                Copier le message
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </>
   );
 }
