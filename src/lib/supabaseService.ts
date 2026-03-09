@@ -264,10 +264,19 @@ export const deleteVerticalElement = async (id: number) => {
 };
 
 export const updateVerticalElementStatus = async (id: number, field: string, newStatus: string) => {
-  const { error } = await supabase.from('vertical_elements').update({ [field]: newStatus }).eq('id', id);
+  console.log(`[supabaseService] updateVerticalElementStatus: id=${id}, field=${field}, newStatus=${newStatus}`);
+  
+  const { data, error, count } = await supabase
+    .from('vertical_elements')
+    .update({ [field]: newStatus })
+    .eq('id', id)
+    .select();
+  
+  console.log('[supabaseService] Update result:', { data, error, count });
+  
   if (error) {
     console.error('updateVerticalElementStatus error:', error);
-    return; // Don't proceed if the update failed
+    throw new Error(`Supabase update failed: ${error.message} (code: ${error.code})`);
   }
 
   // Sync status with task
