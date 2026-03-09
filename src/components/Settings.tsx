@@ -3,8 +3,7 @@ import { User, Lock, Trash2, Save, AlertTriangle, CheckCircle2, Loader2, Mail, S
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../auth/AuthProvider';
 import { motion } from 'motion/react';
-import { fetchProjectMembers, inviteProjectMember, removeProjectMember, updateMemberRole, fetchElementTypes, createElementType, deleteElementType } from '../lib/supabaseService';
-import { ElementType } from '../types';
+import { fetchProjectMembers, inviteProjectMember, removeProjectMember, updateMemberRole } from '../lib/supabaseService';
 
 const ROLES = [
   { value: 'admin', label: 'Admin', icon: Crown, desc: 'Accès complet (créer, modifier, supprimer)', color: 'text-yellow-600 bg-yellow-50 border-yellow-200' },
@@ -31,28 +30,19 @@ export default function Settings() {
   const [inviteLoading, setInviteLoading] = useState(false);
   const [shareModal, setShareModal] = useState<{ email: string; role: string } | null>(null);
 
-  // Element Types management
-  const [elementTypes, setElementTypes] = useState<ElementType[]>([]);
-  const [newTypeName, setNewTypeName] = useState('');
-  const [typeLoading, setTypeLoading] = useState(false);
+
 
   useEffect(() => {
     if (user) {
       setFullName(user.user_metadata?.full_name || '');
       setEmail(user.email || '');
       loadMembers();
-      loadElementTypes();
     }
   }, [user]);
 
   const loadMembers = async () => {
     const data = await fetchProjectMembers();
     setMembers(data);
-  };
-
-  const loadElementTypes = async () => {
-    const data = await fetchElementTypes();
-    setElementTypes(data);
   };
 
   const showMessage = (type: 'success' | 'error', text: string) => {

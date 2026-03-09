@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, differenceInDays, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
-import { fetchTasks as loadTasks, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createTask as svcCreateTask, updateTask as svcUpdateTask, deleteTask as svcDeleteTask, bulkDeleteTasks as svcBulkDeleteTasks } from '../lib/supabaseService';
+import { fetchTasks as loadTasks, fetchBlocks as loadBlocks, fetchFloors as loadFloors, createTask as svcCreateTask, updateTask as svcUpdateTask, deleteTask as svcDeleteTask, bulkDeleteTasks as svcBulkDeleteTasks, fetchElementTypes } from '../lib/supabaseService';
 import { useAuth } from '../auth/AuthProvider';
 
 // Aliases for automatic column detection (lowercase)
@@ -73,6 +73,7 @@ export default function Planning() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
+  const [elementTypes, setElementTypes] = useState<{id: number, name: string}[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -113,6 +114,18 @@ export default function Planning() {
   const fetchTasks = async () => { setTasks(await loadTasks()); };
   const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
   const fetchFloors = async () => { setFloors(await loadFloors()); };
+
+  const loadTypes = async () => {
+    const allTypes = await fetchElementTypes();
+    const types = allTypes.filter((t: any) => t.category === 'planning' || t.category === 'les deux');
+    setElementTypes(types);
+  };
+
+  useEffect(() => {
+    if (isModalOpen || isEditModalOpen) {
+      loadTypes();
+    }
+  }, [isModalOpen, isEditModalOpen]);
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -639,10 +652,9 @@ export default function Planning() {
                   className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none"
                 >
                   <option value="">Aucun / Autre</option>
-                  <option value="Poteau">Poteau</option>
-                  <option value="Voile">Voile</option>
-                  <option value="Voile périphérique">Voile périphérique</option>
-                  <option value="Dalle">Dalle</option>
+                  {elementTypes.map(t => (
+                    <option key={t.id} value={t.name}>{t.name}</option>
+                  ))}
                 </select>
               </div>
               <div className="col-span-2">

@@ -72,6 +72,7 @@ export interface ElementType {
   id: number;
   user_id: string;
   name: string;
+  category: 'suivi' | 'planning' | 'les deux';
   created_at: string;
 }
 

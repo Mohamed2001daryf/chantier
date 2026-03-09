@@ -15,7 +15,8 @@ import {
   ChevronRight,
   LogOut,
   Loader2,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -34,6 +35,7 @@ import Productivite from './components/Productivite';
 import Retards from './components/Retards';
 import Rapports from './components/Rapports';
 import Settings from './components/Settings';
+import TypesElements from './components/TypesElements';
 
 const MENU_ITEMS = [
   { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard, component: Dashboard },
@@ -42,6 +44,7 @@ const MENU_ITEMS = [
   { id: 'dalles', label: 'Dalles post-tension', icon: Layers, component: DallesPostTension },
   { id: 'blocs', label: 'Gestion des blocs', icon: Box, component: GestionBlocs },
   { id: 'etages', label: 'Gestion des étages', icon: ArrowUpCircle, component: GestionEtages },
+  { id: 'types-elements', label: 'Types d\'Éléments', icon: Tag, component: TypesElements, adminOnly: true },
   { id: 'equipes', label: 'Équipes', icon: Users, component: Equipes },
   { id: 'productivite', label: 'Productivité', icon: TrendingUp, component: Productivite },
   { id: 'retards', label: 'Retards', icon: AlertTriangle, component: Retards },
@@ -98,6 +101,13 @@ export default function App() {
 
   // Extract display name from user metadata or fallback to email
   const userDisplayName = user.user_metadata?.full_name || user.email || 'Utilisateur';
+  
+  // Filter menu items based on role
+  const { role } = useAuth();
+  const visibleMenuItems = MENU_ITEMS.filter(item => {
+    if ((item as any).adminOnly && role !== 'admin') return false;
+    return true;
+  });
   const userInitials = userDisplayName.slice(0, 2).toUpperCase();
 
   const ActiveComponent = MENU_ITEMS.find(item => item.id === activeTab)?.component || Dashboard;
@@ -127,7 +137,7 @@ export default function App() {
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 custom-scrollbar">
-          {MENU_ITEMS.map((item) => (
+          {visibleMenuItems.map((item) => (
             <button
               key={item.id}
               onClick={() => handleNavClick(item.id)}

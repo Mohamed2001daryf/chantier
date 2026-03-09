@@ -125,11 +125,11 @@ export const fetchElementTypes = async () => {
   return data || [];
 };
 
-export const createElementType = async (name: string) => {
+export const createElementType = async (name: string, category: 'suivi' | 'planning' | 'les deux') => {
   const uid = await getUserId();
   const { data, error } = await supabase
     .from('element_types')
-    .insert({ user_id: uid, name: name.trim() })
+    .insert({ user_id: uid, name: name.trim(), category })
     .select()
     .single();
   if (error) {

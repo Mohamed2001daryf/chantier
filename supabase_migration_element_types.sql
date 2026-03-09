@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS element_types (
   id BIGSERIAL PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  category TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   
   -- S'assurer qu'un même utilisateur ne peut pas créer deux fois le même type
@@ -38,14 +39,14 @@ CREATE POLICY "Allow delete access to element_types"
 
 -- 4. Insertion des types par défaut pour les utilisateurs existants
 -- Optionnel : Copier les types par défaut pour chaque utilisateur existant
-INSERT INTO element_types (user_id, name)
-SELECT DISTINCT id, 'Poteaux' FROM auth.users
+INSERT INTO element_types (user_id, name, category)
+SELECT DISTINCT id, 'Poteaux', 'les deux' FROM auth.users
 ON CONFLICT DO NOTHING;
 
-INSERT INTO element_types (user_id, name)
-SELECT DISTINCT id, 'Voiles' FROM auth.users
+INSERT INTO element_types (user_id, name, category)
+SELECT DISTINCT id, 'Voiles', 'les deux' FROM auth.users
 ON CONFLICT DO NOTHING;
 
-INSERT INTO element_types (user_id, name)
-SELECT DISTINCT id, 'Voiles périphériques' FROM auth.users
+INSERT INTO element_types (user_id, name, category)
+SELECT DISTINCT id, 'Voiles périphériques', 'les deux' FROM auth.users
 ON CONFLICT DO NOTHING;
