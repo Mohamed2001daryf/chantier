@@ -12,6 +12,7 @@ export default function DallesPostTension() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingSlabId, setEditingSlabId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [formData, setFormData] = useState({ 
     block_id: '', 
     floor_id: '', 
@@ -117,8 +118,24 @@ export default function DallesPostTension() {
         </button>
       </div>
 
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-center">
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input type="text" placeholder="Rechercher une dalle..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B]" />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6">
-        {slabs.map((slab) => (
+        {slabs.filter(slab => {
+          if (!searchQuery.trim()) return true;
+          const q = searchQuery.toLowerCase();
+          return (
+            slab.name?.toLowerCase().includes(q) ||
+            slab.axes?.toLowerCase().includes(q) ||
+            slab.block_name?.toLowerCase().includes(q) ||
+            slab.floor_name?.toLowerCase().includes(q)
+          );
+        }).map((slab) => (
           <div key={slab.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden group hover:border-[#FF851B]/30 transition-all">
             <div className="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
               <div className="flex items-center gap-4">

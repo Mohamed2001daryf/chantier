@@ -90,6 +90,7 @@ export default function Planning() {
 
   const [viewDate, setViewDate] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [selectedBlockFilter, setSelectedBlockFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Import states
@@ -374,8 +375,18 @@ export default function Planning() {
   };
 
   const filteredTasks = tasks.filter(task => {
-    if (selectedBlockFilter === 'all') return true;
-    return task.block_id?.toString() === selectedBlockFilter;
+    if (selectedBlockFilter !== 'all' && task.block_id?.toString() !== selectedBlockFilter) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return (
+        task.element?.toLowerCase().includes(q) ||
+        task.description?.toLowerCase().includes(q) ||
+        task.block_name?.toLowerCase().includes(q) ||
+        task.element_type?.toLowerCase().includes(q) ||
+        task.floor_name?.toLowerCase().includes(q)
+      );
+    }
+    return true;
   });
 
   // Gantt Chart Logic
@@ -454,6 +465,13 @@ export default function Planning() {
                 <option key={block.id} value={block.id.toString()}>{block.name}</option>
               ))}
             </select>
+            <input 
+              type="text" 
+              placeholder="Rechercher..." 
+              value={searchQuery} 
+              onChange={e => setSearchQuery(e.target.value)} 
+              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-2 rounded-xl text-sm focus:ring-2 focus:ring-[#FF851B] outline-none transition-all w-[180px]" 
+            />
           </div>
 
           <div className="flex items-center gap-4 text-xs font-bold uppercase tracking-wider text-gray-400">
