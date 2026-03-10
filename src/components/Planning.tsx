@@ -461,6 +461,8 @@ export default function Planning() {
     if (tasks.length > 0) {
       setTimeout(() => {
         handleScrollToToday();
+        console.log('ganttRef width:', ganttScrollRef.current?.scrollWidth);
+        console.log('today offset:', differenceInDays(new Date(), viewStartDate) * COL_WIDTH);
       }, 100);
     }
   }, [tasks, viewStartDate]);
@@ -641,8 +643,9 @@ export default function Planning() {
             className="flex-1 overflow-x-auto overflow-y-auto bg-white relative"
             ref={ganttScrollRef}
             onScroll={syncScrollRightToLeft}
+            style={{ overflowX: 'auto', width: '100%' }}
           >
-            <div style={{ width: `${timelineDays.length * COL_WIDTH}px` }} className="min-w-max">
+            <div style={{ width: `${timelineDays.length * COL_WIDTH}px`, position: 'relative' }} className="min-w-max">
               
               {/* Timeline Headers (Sticky Top) */}
               <div className="sticky top-0 z-[15] bg-white pointer-events-none">

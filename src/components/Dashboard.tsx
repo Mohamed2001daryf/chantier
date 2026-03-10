@@ -7,6 +7,7 @@ import {
   Users, AlertTriangle, CheckCircle2, Clock, TrendingUp, Layers, 
   Activity, Timer, Building2
 } from 'lucide-react';
+import { parseISO } from 'date-fns';
 import { DashboardStats } from '../types';
 import { supabase } from '../lib/supabase';
 import { getActiveProjectOwnerId } from '../lib/supabaseService';
@@ -79,8 +80,8 @@ export default function Dashboard() {
       // Calcul retards
       const today = new Date();
       today.setHours(0,0,0,0);
-      const delayedTasksData = tasks.filter(t => t.end_date && new Date(t.end_date) < today && t.status !== 'termine' && t.status !== 'Terminé').map(t => {
-        const tEnd = new Date(t.end_date);
+      const delayedTasksData = tasks.filter(t => t.end_date && parseISO(t.end_date) < today && t.status !== 'termine' && t.status !== 'Terminé').map(t => {
+        const tEnd = parseISO(t.end_date);
         tEnd.setHours(0,0,0,0);
         return {
           ...t,
@@ -146,7 +147,7 @@ export default function Dashboard() {
       // Liste des retards
       const delayedTasksList = delayedTasksData.map(t => ({
         id: t.id,
-        name: t.name || 'Tâche',
+        name: t.element || 'Tâche',
         block: blocks.find(b => b.id === t.block_id)?.name || 'Général',
         joursRetard: t.joursRetard
       }));
