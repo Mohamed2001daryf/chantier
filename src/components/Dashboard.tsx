@@ -70,12 +70,32 @@ export default function Dashboard() {
         ...slabs.map(s => ({ ...s, normalizedType: 'Dalles', unifiedStatus: s.status }))
       ];
 
-      // Calcul avancement global
-      const totalElements = allElements.length;
-      const terminatedElements = allElements.filter(e => e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé').length;
-      const globalProgress = totalElements > 0 ? Math.round((terminatedElements / totalElements) * 100) : 0;
-      
-      const elementsInProgress = allElements.filter(e => e.unifiedStatus === 'en_cours' || e.unifiedStatus === 'En cours').length;
+      // Effectuer les calculs mixtes (Unités pour verticaux, Surface pour dalles)
+      let totalWeight = 0;
+      let completedWeight = 0;
+      let elementsInProgressCount = 0;
+      let terminatedElementsCount = 0;
+
+      allElements.forEach(e => {
+        const isCompleted = e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé';
+        const isInProgress = e.unifiedStatus === 'en_cours' || e.unifiedStatus === 'En cours';
+
+        if (isCompleted) terminatedElementsCount++;
+        if (isInProgress) elementsInProgressCount++;
+
+        if (e.normalizedType === 'Dalles') {
+          const s = e as any;
+          const totalS = parseFloat(s.surface) || 0;
+          const couleeS = parseFloat(s.surface_coulee) || 0;
+          totalWeight += totalS;
+          completedWeight += (isCompleted ? totalS : couleeS);
+        } else {
+          totalWeight += 1;
+          completedWeight += isCompleted ? 1 : 0;
+        }
+      });
+
+      const globalProgress = totalWeight > 0 ? Math.round((completedWeight / totalWeight) * 100) : 0;
 
       // Calcul retards
       const today = new Date();
@@ -91,16 +111,16 @@ export default function Dashboard() {
 
       const kpis = {
         globalProgress,
-        elementsCompleted: terminatedElements,
+        elementsCompleted: terminatedElementsCount,
         delayedTasks: delayedTasksData.length,
-        elementsInProgress
+        elementsInProgress: elementsInProgressCount
       };
 
       // Statut des Tâches (Pie)
       const taskStatusPie = {
         not_started: allElements.filter(e => !e.unifiedStatus || e.unifiedStatus === 'non_commence' || e.unifiedStatus === 'Non commencé').length,
-        started: elementsInProgress,
-        completed: terminatedElements
+        started: elementsInProgressCount,
+        completed: terminatedElementsCount
       };
 
       // Avancement par Bloc
@@ -156,12 +176,29 @@ export default function Dashboard() {
       const progressByFloor = floors.map(f => {
         const fBlock = blocks.find(b => b.id === f.block_id)?.name || 'Général';
         const fElements = allElements.filter(e => e.floor_id === f.id);
-        const fTypeMap = new Map<string, { done: number; total: number }>();
+        const fTypeMap = new Map<string, { done: number; total: number, isSurface: boolean }>();
+        
         fElements.forEach(e => {
           const isDone = e.unifiedStatus === 'termine' || e.unifiedStatus === 'Terminé';
-          const p = fTypeMap.get(e.normalizedType) || { done: 0, total: 0 };
-          p.total++;
-          if(isDone) p.done++;
+          const p = fTypeMap.get(e.normalizedType) || { done: 0, total: 0, isSurface: e.normalizedType === 'Dalles' };
+          
+          if (e.normalizedType === 'Dalles') {
+            const s = e as any;
+            const tSurf = parseFloat(s.surface) || 0;
+            const cSurf = parseFloat(s.surface_coulee) || 0;
+            p.total += tSurf;
+            p.done += isDone ? tSurf : cSurf;
+            
+            // Si c'est la première dalle pour cet étage et qu'on a défini une surface_totale_dalle override sur l'étage
+            if (f.surface_totale_dalle && f.surface_totale_dalle > 0) {
+              p.total = f.surface_totale_dalle; // on bypass la somme des surfaces individuelles si l'étage gère ce total
+            }
+
+          } else {
+            p.total++;
+            if(isDone) p.done++;
+          }
+          
           fTypeMap.set(e.normalizedType, p);
         });
         return {
@@ -172,7 +209,8 @@ export default function Dashboard() {
           elements: Array.from(fTypeMap.entries()).filter(([_,v])=>v.total>0).map(([t,v]) => ({
             type: t,
             done: v.done,
-            total: v.total
+            total: v.total,
+            isSurface: v.isSurface
           }))
         }
       }).filter(f => f.elements.length > 0)
@@ -217,7 +255,7 @@ export default function Dashboard() {
         const completedCount = termineDates.filter(t => t <= d.getTime()).length;
         progressOverTime.push({
           date: d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }),
-          globalProgress: totalElements > 0 ? Math.round((completedCount / totalElements) * 100) : 0
+          globalProgress: allElements.length > 0 ? Math.round((completedCount / allElements.length) * 100) : 0
         });
       }
 
@@ -493,11 +531,17 @@ export default function Dashboard() {
                     {floor.elements.map((el, i) => {
                       const pct = el.total > 0 ? Math.round((el.done / el.total) * 100) : 0;
                       const barColor = pct === 100 ? 'bg-[#22C55E]' : pct > 0 ? 'bg-[#F97316]' : 'bg-[#9CA3AF]';
+                      
+                      const displayDone = el.isSurface ? `${el.done} m²` : el.done;
+                      const displayTotal = el.isSurface ? `${el.total} m²` : el.total;
+
                       return (
                         <div key={i} className="flex flex-col text-sm">
                           <div className="flex justify-between font-medium mb-1">
                             <span className="text-gray-700">{el.type}</span>
-                            <span className={pct === 100 ? "text-[#22C55E]" : "text-gray-500"}>{el.done} / {el.total}</span>
+                            <span className={pct === 100 ? "text-[#22C55E]" : "text-gray-500"}>
+                              {displayDone} / {displayTotal} — {pct}%
+                            </span>
                           </div>
                           <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div className={`h-full ${barColor}`} style={{ width: `${pct}%` }}></div>

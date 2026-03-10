@@ -317,13 +317,20 @@ export const createTask = async (payload: any) => {
         slab_id = slabData?.id || null;
       }
     } else {
+      const initRaw = payload.status?.trim().toLowerCase();
+      let initStatus = 'Non commencé';
+      if (initRaw === 'terminé' || initRaw === 'termine') initStatus = 'Terminé';
+      else if (initRaw === 'en cours') initStatus = 'En cours';
+
       const { data: veData } = await supabase.from('vertical_elements').insert({
         block_id: payload.block_id,
         floor_id: payload.floor_id,
         type: payload.element_type,
         name: payload.element,
         axes: payload.axes || null,
-        coulage_status: mapStatusPlanningToSuivi(payload.status || 'Non commencé'),
+        ferraillage_status: initStatus,
+        coffrage_status: initStatus,
+        coulage_status: initStatus,
         task_id: taskData.id,
         user_id: uid
       }).select('id').single();
@@ -378,13 +385,14 @@ export const updateTask = async (id: number, payload: any) => {
         axes: payload.axes, type: payload.element_type
       };
 
-      if (payload.status === 'Terminé') {
+      const normStatus = payload.status?.trim().toLowerCase();
+      if (normStatus === 'terminé' || normStatus === 'termine') {
         veUpdate.ferraillage_status = 'Terminé';
         veUpdate.coffrage_status = 'Terminé';
         veUpdate.coulage_status = 'Terminé';
-      } else if (payload.status === 'En cours') {
+      } else if (normStatus === 'en cours') {
         veUpdate.ferraillage_status = 'En cours';
-      } else if (payload.status === 'Non commencé') {
+      } else if (normStatus === 'non commencé' || normStatus === 'non commence') {
         veUpdate.ferraillage_status = 'Non commencé';
         veUpdate.coffrage_status = 'Non commencé';
         veUpdate.coulage_status = 'Non commencé';

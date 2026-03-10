@@ -99,7 +99,12 @@ export default function Planning() {
     return d;
   });
   const [selectedBlockFilter, setSelectedBlockFilter] = useState<string>('all');
+  const [selectedFloorFilter, setSelectedFloorFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setSelectedFloorFilter('all');
+  }, [selectedBlockFilter]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ganttScrollRef = useRef<HTMLDivElement>(null);
   const leftTableScrollRef = useRef<HTMLDivElement>(null);
@@ -399,6 +404,7 @@ export default function Planning() {
 
   const filteredTasks = tasks.filter(task => {
     if (selectedBlockFilter !== 'all' && task.block_id?.toString() !== selectedBlockFilter) return false;
+    if (selectedFloorFilter !== 'all' && task.floor_id?.toString() !== selectedFloorFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -546,6 +552,16 @@ export default function Planning() {
               <option value="all">Tous les blocs</option>
               {blocks.map(block => (
                 <option key={block.id} value={block.id.toString()}>{block.name}</option>
+              ))}
+            </select>
+            <select 
+              value={selectedFloorFilter} 
+              onChange={(e) => setSelectedFloorFilter(e.target.value)}
+              className="bg-white border border-gray-200 text-[#001F3F] px-3 py-1.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-[#FF851B] outline-none"
+            >
+              <option value="all">Tous les étages</option>
+              {(selectedBlockFilter === 'all' ? floors : floors.filter(f => f.block_id.toString() === selectedBlockFilter)).map(f => (
+                <option key={f.id} value={f.id.toString()}>{f.name}</option>
               ))}
             </select>
             <input 

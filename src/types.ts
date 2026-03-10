@@ -11,6 +11,7 @@ export interface Floor {
   block_name?: string;
   name: string;
   order_number: number;
+  surface_totale_dalle?: number;
 }
 
 export interface VerticalElement {
@@ -49,6 +50,7 @@ export interface Slab {
   volume_beton?: number;
   poids_acier?: number;
   task_id?: number; // Linked task from Planning
+  surface_coulee?: number;
 }
 
 export interface Task {
@@ -134,7 +136,7 @@ export interface DashboardStats {
     id: number;
     floorName: string;
     blockName: string;
-    elements: { type: string; done: number; total: number }[];
+    elements: { type: string; done: number; total: number; isSurface?: boolean }[];
   }[];
   teamProductivity: {
     block: string;

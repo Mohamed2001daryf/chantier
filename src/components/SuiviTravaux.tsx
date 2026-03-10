@@ -26,6 +26,7 @@ export default function SuiviTravaux() {
     end_date: new Date(new Date().setDate(new Date().getDate() + 5)).toISOString().split('T')[0]
   });
   const [filterBlock, setFilterBlock] = useState('');
+  const [filterFloor, setFilterFloor] = useState('');
   const [filterTeam, setFilterTeam] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -46,6 +47,10 @@ export default function SuiviTravaux() {
       setFormData(prev => ({ ...prev, type: types[0].name }));
     }
   };
+
+  useEffect(() => {
+    setFilterFloor('');
+  }, [filterBlock]);
 
   const fetchElements = async () => { setElements(await loadElements()); };
   const fetchBlocks = async () => { setBlocks(await loadBlocks()); };
@@ -108,6 +113,9 @@ export default function SuiviTravaux() {
   if (filterBlock) {
     filteredElements = filteredElements.filter(e => e.block_id === parseInt(filterBlock));
   }
+  if (filterFloor) {
+    filteredElements = filteredElements.filter(e => e.floor_id === parseInt(filterFloor));
+  }
   if (teamElementIds) {
     filteredElements = filteredElements.filter(e => teamElementIds.has(e.id));
   }
@@ -142,6 +150,16 @@ export default function SuiviTravaux() {
         >
           <option value="">Tous les blocs</option>
           {blocks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select 
+          value={filterFloor}
+          onChange={e => setFilterFloor(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B] min-w-[150px]"
+        >
+          <option value="">Tous les étages</option>
+          {(!filterBlock ? floors : floors.filter(f => f.block_id === parseInt(filterBlock))).map(f => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
         </select>
         <select 
           value={filterTeam}

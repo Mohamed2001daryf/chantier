@@ -10,7 +10,7 @@ export default function GestionEtages() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ block_id: '', name: '', order_number: 0 });
+  const [formData, setFormData] = useState({ block_id: '', name: '', order_number: 0, surface_totale_dalle: 0 });
 
   useEffect(() => {
     fetchBlocks();
@@ -22,10 +22,10 @@ export default function GestionEtages() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createFloor({ ...formData, block_id: parseInt(formData.block_id) } as any);
+    await createFloor({ ...formData, block_id: parseInt(formData.block_id), surface_totale_dalle: Number(formData.surface_totale_dalle) || 0 } as any);
     await fetchFloors();
     setIsModalOpen(false);
-    setFormData({ block_id: '', name: '', order_number: 0 });
+    setFormData({ block_id: '', name: '', order_number: 0, surface_totale_dalle: 0 });
   };
 
   const handleDelete = async (id: number) => {
@@ -76,10 +76,10 @@ export default function GestionEtages() {
                 {blockFloors.sort((a, b) => b.order_number - a.order_number).map((floor) => (
                   <div key={floor.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl transition-colors group">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500">
+                      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
                         {floor.order_number > 0 ? `+${floor.order_number}` : floor.order_number}
                       </div>
-                      <span className="font-bold text-[#001F3F]">{floor.name}</span>
+                      <span className="font-bold text-[#001F3F]">{floor.name} {floor.surface_totale_dalle ? `— ${floor.surface_totale_dalle} m²` : ''}</span>
                     </div>
                     {role !== 'viewer' && (
                       <button 
@@ -147,6 +147,18 @@ export default function GestionEtages() {
                   />
                   <p className="text-xs text-gray-400 italic max-w-[150px]">Utilisé pour le tri vertical (ex: -1 pour sous-sol, 0 pour RDC)</p>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Surface totale dalle (m²) <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  value={formData.surface_totale_dalle || ''}
+                  onChange={e => setFormData({ ...formData, surface_totale_dalle: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none"
+                  placeholder="Ex: 850"
+                />
               </div>
               <div className="flex gap-3 pt-4">
                 <button 

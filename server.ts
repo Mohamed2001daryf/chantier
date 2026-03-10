@@ -20,6 +20,7 @@ db.exec(`
     block_id INTEGER NOT NULL,
     name TEXT NOT NULL,
     order_number INTEGER NOT NULL,
+    surface_totale_dalle REAL DEFAULT 0,
     FOREIGN KEY (block_id) REFERENCES blocks (id) ON DELETE CASCADE
   );
 
@@ -53,6 +54,7 @@ db.exec(`
     pose_cable_status TEXT DEFAULT 'Non commencé',
     renforcement_status TEXT DEFAULT 'Non commencé',
     coulage_status TEXT DEFAULT 'Non commencé',
+    surface_coulee REAL DEFAULT 0,
     FOREIGN KEY (block_id) REFERENCES blocks (id) ON DELETE CASCADE,
     FOREIGN KEY (floor_id) REFERENCES floors (id) ON DELETE CASCADE
   );
@@ -139,6 +141,14 @@ try {
   db.prepare("ALTER TABLE productivity ADD COLUMN task_id INTEGER REFERENCES tasks(id) ON DELETE SET NULL").run();
 } catch (e) {}
 
+try {
+  db.prepare("ALTER TABLE floors ADD COLUMN surface_totale_dalle REAL DEFAULT 0").run();
+} catch (e) {}
+
+try {
+  db.prepare("ALTER TABLE slabs ADD COLUMN surface_coulee REAL DEFAULT 0").run();
+} catch (e) {}
+
 // Seed initial data if empty
 const blockCount = db.prepare("SELECT COUNT(*) as count FROM blocks").get() as { count: number };
 if (blockCount.count === 0) {
@@ -202,8 +212,8 @@ async function startServer() {
   });
 
   app.post("/api/floors", (req, res) => {
-    const { block_id, name, order_number } = req.body;
-    const info = db.prepare("INSERT INTO floors (block_id, name, order_number) VALUES (?, ?, ?)").run(block_id, name, order_number);
+    const { block_id, name, order_number, surface_totale_dalle } = req.body;
+    const info = db.prepare("INSERT INTO floors (block_id, name, order_number, surface_totale_dalle) VALUES (?, ?, ?, ?)").run(block_id, name, order_number, surface_totale_dalle ?? 0);
     res.json({ id: info.lastInsertRowid });
   });
 
@@ -284,10 +294,10 @@ async function startServer() {
   });
 
   app.post("/api/slabs", (req, res) => {
-    const { block_id, floor_id, name, axes, surface, start_date, end_date } = req.body;
+    const { block_id, floor_id, name, axes, surface, start_date, end_date, surface_coulee } = req.body;
     const info = db.prepare(`
-      INSERT INTO slabs (block_id, floor_id, name, axes, surface, start_date, end_date, status) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO slabs (block_id, floor_id, name, axes, surface, start_date, end_date, status, surface_coulee) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       block_id ?? null, 
       floor_id ?? null, 
@@ -296,7 +306,8 @@ async function startServer() {
       surface ?? 0, 
       start_date ?? null, 
       end_date ?? null, 
-      'Non commencé'
+      'Non commencé',
+      surface_coulee ?? 0
     );
     const slabId = info.lastInsertRowid;
 

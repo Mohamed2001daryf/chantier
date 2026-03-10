@@ -15,12 +15,18 @@ export default function DallesPostTension() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingSlabId, setEditingSlabId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBloc, setSelectedBloc] = useState('all');
+  const [selectedFloor, setSelectedFloor] = useState('all');
+
+  useEffect(() => { setSelectedFloor('all'); }, [selectedBloc]);
+
   const [formData, setFormData] = useState({ 
     block_id: '', 
     floor_id: '', 
     name: '', 
     axes: '', 
     surface: '',
+    surface_coulee: '',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]
   });
@@ -37,7 +43,7 @@ export default function DallesPostTension() {
 
   const resetForm = () => {
     setFormData({ 
-      block_id: '', floor_id: '', name: '', axes: '', surface: '',
+      block_id: '', floor_id: '', name: '', axes: '', surface: '', surface_coulee: '',
       start_date: new Date().toISOString().split('T')[0],
       end_date: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]
     });
@@ -52,14 +58,16 @@ export default function DallesPostTension() {
         ...formData,
         block_id: parseInt(formData.block_id),
         floor_id: parseInt(formData.floor_id),
-        surface: parseFloat(formData.surface)
+        surface: parseFloat(formData.surface),
+        surface_coulee: parseFloat(formData.surface_coulee) || 0
       });
     } else {
       await createSlab({
         ...formData,
         block_id: parseInt(formData.block_id),
         floor_id: parseInt(formData.floor_id),
-        surface: parseFloat(formData.surface)
+        surface: parseFloat(formData.surface),
+        surface_coulee: parseFloat(formData.surface_coulee) || 0
       });
     }
     await fetchSlabs();
@@ -74,6 +82,7 @@ export default function DallesPostTension() {
       name: slab.name || '',
       axes: slab.axes || '',
       surface: slab.surface?.toString() || '',
+      surface_coulee: slab.surface_coulee?.toString() || '',
       start_date: slab.start_date || new Date().toISOString().split('T')[0],
       end_date: slab.end_date || new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0]
     });
@@ -128,10 +137,32 @@ export default function DallesPostTension() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input type="text" placeholder="Rechercher une dalle..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B]" />
         </div>
+        <select 
+          value={selectedBloc}
+          onChange={e => setSelectedBloc(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B] min-w-[150px]"
+        >
+          <option value="all">Tous les blocs</option>
+          {blocks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select 
+          value={selectedFloor}
+          onChange={e => setSelectedFloor(e.target.value)}
+          className="px-4 py-2 rounded-xl border border-gray-200 outline-none focus:ring-2 focus:ring-[#FF851B] min-w-[150px]"
+        >
+          <option value="all">Tous les étages</option>
+          {(selectedBloc === 'all' ? floors : floors.filter(f => f.block_id.toString() === selectedBloc)).map(f => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
         {slabs.filter(slab => {
+          const matchBloc = selectedBloc === 'all' || slab.block_id?.toString() === selectedBloc;
+          const matchFloor = selectedFloor === 'all' || slab.floor_id?.toString() === selectedFloor;
+          if (!matchBloc || !matchFloor) return false;
+
           if (!searchQuery.trim()) return true;
           const q = searchQuery.toLowerCase();
           return (
@@ -153,7 +184,7 @@ export default function DallesPostTension() {
                     <span className="text-xs font-mono text-gray-400 bg-white px-2 py-0.5 rounded border border-gray-100 uppercase tracking-tighter">{slab.axes}</span>
                   </div>
                   <p className="text-sm text-gray-500 font-medium">
-                    {slab.block_name} • <span className="text-[#FF851B]">{slab.floor_name}</span> • {slab.surface} m²
+                    {slab.block_name} • <span className="text-[#FF851B]">{slab.floor_name}</span> • {slab.surface} m² total {slab.surface_coulee ? `• ${slab.surface_coulee} m² coulée` : ''}
                   </p>
                 </div>
               </div>
@@ -234,8 +265,12 @@ export default function DallesPostTension() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Surface (m²)</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Surface totale (m²)</label>
                 <input required type="number" step="0.01" value={formData.surface} onChange={e => setFormData({ ...formData, surface: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" placeholder="Ex: 450.5" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Surface coulée (m²) <span className="text-gray-400 font-normal">(optionnel)</span></label>
+                <input type="number" step="0.01" value={formData.surface_coulee} onChange={e => setFormData({ ...formData, surface_coulee: e.target.value })} className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none" placeholder="Ex: 250" />
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Axes</label>
