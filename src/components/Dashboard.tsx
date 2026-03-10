@@ -79,8 +79,8 @@ export default function Dashboard() {
       // Calcul retards
       const today = new Date();
       today.setHours(0,0,0,0);
-      const delayedTasksData = tasks.filter(t => t.date_fin && new Date(t.date_fin) < today && t.statut !== 'termine' && t.statut !== 'Terminé').map(t => {
-        const tEnd = new Date(t.date_fin);
+      const delayedTasksData = tasks.filter(t => t.end_date && new Date(t.end_date) < today && t.status !== 'termine' && t.status !== 'Terminé').map(t => {
+        const tEnd = new Date(t.end_date);
         tEnd.setHours(0,0,0,0);
         return {
           ...t,

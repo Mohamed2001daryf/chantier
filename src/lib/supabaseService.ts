@@ -373,12 +373,24 @@ export const updateTask = async (id: number, payload: any) => {
         end_date: payload.end_date, status: payload.status
       }).eq('id', task.slab_id);
     } else if (task.element_id) {
-      // Remove hardcoded typs, support any dynamic type mapped back to Suivi
-      await supabase.from('vertical_elements').update({
+      const veUpdate: any = {
         block_id: payload.block_id, floor_id: payload.floor_id, name: payload.element,
-        axes: payload.axes, type: payload.element_type,
-        coulage_status: payload.status ? mapStatusPlanningToSuivi(payload.status) : undefined
-      }).eq('id', task.element_id);
+        axes: payload.axes, type: payload.element_type
+      };
+
+      if (payload.status === 'Terminé') {
+        veUpdate.ferraillage_status = 'Terminé';
+        veUpdate.coffrage_status = 'Terminé';
+        veUpdate.coulage_status = 'Terminé';
+      } else if (payload.status === 'En cours') {
+        veUpdate.ferraillage_status = 'En cours';
+      } else if (payload.status === 'Non commencé') {
+        veUpdate.ferraillage_status = 'Non commencé';
+        veUpdate.coffrage_status = 'Non commencé';
+        veUpdate.coulage_status = 'Non commencé';
+      }
+
+      await supabase.from('vertical_elements').update(veUpdate).eq('id', task.element_id);
     }
   }
 };
@@ -495,15 +507,19 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
   if (data?.task_id) {
     let planningStatus = 'Non commencé';
     
-    // Si coulage terminé -> tout est terminé
-    if (data.coulage_status === 'Terminé' || newStatus === 'Terminé') {
+    const fStatus = data.ferraillage_status;
+    const cStatus = data.coffrage_status;
+    const lStatus = data.coulage_status;
+
+    if ((fStatus === 'Terminé' || fStatus === 'termine') && 
+        (cStatus === 'Terminé' || cStatus === 'termine') && 
+        (lStatus === 'Terminé' || lStatus === 'termine')) {
       planningStatus = 'Terminé';
     } 
-    // Sinon si au moins une étape est commencée
     else if (
-      (data.ferraillage_status && data.ferraillage_status !== 'Non commencé') || 
-      (data.coffrage_status && data.coffrage_status !== 'Non commencé') || 
-      (data.coulage_status && data.coulage_status !== 'Non commencé')
+      (fStatus && fStatus !== 'Non commencé' && fStatus !== 'non_commence') || 
+      (cStatus && cStatus !== 'Non commencé' && cStatus !== 'non_commence') || 
+      (lStatus && lStatus !== 'Non commencé' && lStatus !== 'non_commence')
     ) {
       planningStatus = 'En cours';
     }

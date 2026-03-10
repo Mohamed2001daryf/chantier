@@ -414,7 +414,7 @@ export default function Planning() {
 
   // Gantt Chart Logic (MS Project Style)
   const COL_WIDTH = 32; // px par jour
-  const daysToShow = 90; // 30 before, 60 after
+  const daysToShow = 180; // 6 mois affichés
   const timelineDays = eachDayOfInterval({
     start: viewStartDate,
     end: addDays(viewStartDate, daysToShow - 1)
@@ -456,6 +456,14 @@ export default function Planning() {
       leftTableScrollRef.current.scrollTop = e.currentTarget.scrollTop;
     }
   };
+
+  useEffect(() => {
+    if (tasks.length > 0) {
+      setTimeout(() => {
+        handleScrollToToday();
+      }, 100);
+    }
+  }, [tasks, viewStartDate]);
 
   return (
     <div className="space-y-6 flex flex-col h-[calc(100vh-100px)]">
@@ -630,7 +638,7 @@ export default function Planning() {
 
           {/* RIGHT GANTT */}
           <div 
-            className="flex-1 overflow-auto bg-white relative no-scrollbar"
+            className="flex-1 overflow-x-auto overflow-y-auto bg-white relative"
             ref={ganttScrollRef}
             onScroll={syncScrollRightToLeft}
           >
