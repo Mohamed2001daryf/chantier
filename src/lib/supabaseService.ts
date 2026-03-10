@@ -260,7 +260,7 @@ export const fetchTasks = async () => {
 
 export const createTask = async (payload: any) => {
   const uid = await getActiveProjectOwnerId();
-  
+
   // 1. Insert Task first to get its ID
   const { data: taskData, error: taskError } = await supabase.from('tasks').insert({
     block_id: payload.block_id || null,
@@ -344,7 +344,7 @@ export const createTask = async (payload: any) => {
       element_id: element_id,
       slab_id: slab_id
     }).eq('id', taskData.id);
-    
+
     taskData.element_id = element_id;
     taskData.slab_id = slab_id;
   }
@@ -353,7 +353,7 @@ export const createTask = async (payload: any) => {
 };
 
 export const updateTask = async (id: number, payload: any) => {
-  const { data: task } = await supabase.from('tasks').select('element_id, slab_id, element_type').eq('id', id).single();
+  const { data: task } = await supabase.from('tasks').select('element_id, slab_id, element_type, user_id').eq('id', id).single();
 
   const { error } = await supabase.from('tasks').update({
     block_id: payload.block_id || null,
@@ -373,13 +373,47 @@ export const updateTask = async (id: number, payload: any) => {
   if (error) console.error('updateTask error:', error);
 
   if (task) {
-    if (task.slab_id) {
+    let elementId = task.element_id;
+    let slabId = task.slab_id;
+
+    // CAS C : Si pas encore lié mais on précise un element_type, essayer de lier par le nom
+    if (!elementId && !slabId && payload.element_type && task.user_id && payload.element) {
+      if (payload.element_type === 'Dalle') {
+        const { data: matchedSlab } = await supabase
+          .from('slabs')
+          .select('id')
+          .eq('name', payload.element)
+          .eq('user_id', task.user_id)
+          .limit(1)
+          .maybeSingle();
+        if (matchedSlab?.id) {
+          slabId = matchedSlab.id;
+          await supabase.from('slabs').update({ task_id: id }).eq('id', slabId);
+          await supabase.from('tasks').update({ slab_id: slabId }).eq('id', id);
+        }
+      } else {
+        const { data: matchedVe } = await supabase
+          .from('vertical_elements')
+          .select('id')
+          .eq('name', payload.element)
+          .eq('user_id', task.user_id)
+          .limit(1)
+          .maybeSingle();
+        if (matchedVe?.id) {
+          elementId = matchedVe.id;
+          await supabase.from('vertical_elements').update({ task_id: id }).eq('id', elementId);
+          await supabase.from('tasks').update({ element_id: elementId }).eq('id', id);
+        }
+      }
+    }
+
+    if (slabId) {
       await supabase.from('slabs').update({
         block_id: payload.block_id, floor_id: payload.floor_id, name: payload.element,
         axes: payload.axes, surface: payload.surface, start_date: payload.start_date,
         end_date: payload.end_date, status: payload.status
-      }).eq('id', task.slab_id);
-    } else if (task.element_id) {
+      }).eq('id', slabId);
+    } else if (elementId) {
       const veUpdate: any = {
         block_id: payload.block_id, floor_id: payload.floor_id, name: payload.element,
         axes: payload.axes, type: payload.element_type
@@ -398,7 +432,7 @@ export const updateTask = async (id: number, payload: any) => {
         veUpdate.coulage_status = 'Non commencé';
       }
 
-      await supabase.from('vertical_elements').update(veUpdate).eq('id', task.element_id);
+      await supabase.from('vertical_elements').update(veUpdate).eq('id', elementId);
     }
   }
 };
@@ -421,11 +455,11 @@ export const bulkDeleteTasks = async (ids: number[]) => {
   if (tasks) {
     const slabIds = tasks.map(t => t.slab_id).filter(Boolean) as number[];
     const elementIds = tasks.map(t => t.element_id).filter(Boolean) as number[];
-    
+
     if (slabIds.length > 0) await supabase.from('slabs').delete().in('id', slabIds);
     if (elementIds.length > 0) await supabase.from('vertical_elements').delete().in('id', elementIds);
   }
-  
+
   const { error } = await supabase.from('tasks').delete().in('id', ids);
   if (error) console.error('bulkDeleteTasks error:', error);
 };
@@ -457,7 +491,7 @@ export const createVerticalElement = async (payload: any) => {
     axes: payload.axes || null,
     user_id: uid
   }).select('id').single();
-  
+
   if (error) {
     console.error('createVerticalElement error:', error);
     return;
@@ -492,7 +526,7 @@ export const deleteVerticalElement = async (id: number) => {
   const { data: element } = await supabase.from('vertical_elements').select('task_id').eq('id', id).single();
   const { error: delError } = await supabase.from('vertical_elements').delete().eq('id', id);
   if (delError) console.error('deleteVerticalElement error:', delError);
-  
+
   if (element?.task_id) {
     const { error: taskError } = await supabase.from('tasks').delete().eq('id', element.task_id);
     if (taskError) console.error('deleteVerticalElement task cleanup error:', taskError);
@@ -504,35 +538,55 @@ export const updateVerticalElementStatus = async (id: number, field: string, new
     .from('vertical_elements')
     .update({ [field]: newStatus })
     .eq('id', id)
-    .select('task_id, ferraillage_status, coffrage_status, coulage_status')
+    .select('task_id, ferraillage_status, coffrage_status, coulage_status, name, user_id')
     .single();
-  
+
   if (error) {
     console.error('updateVerticalElementStatus error:', error);
     return;
   }
 
-  if (data?.task_id) {
+  let taskId = data?.task_id;
+
+  // CAS C : Si pas de task_id, chercher par nom et lier au lieu du task_id
+  if (!taskId && data?.name && data?.user_id) {
+    const { data: matchedTask } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('element', data.name)
+      .eq('user_id', data.user_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (matchedTask?.id) {
+      taskId = matchedTask.id;
+      // Réparer le lien dans les deux sens
+      await supabase.from('vertical_elements').update({ task_id: taskId }).eq('id', id);
+      await supabase.from('tasks').update({ element_id: id }).eq('id', taskId);
+    }
+  }
+
+  if (taskId) {
     let planningStatus = 'Non commencé';
-    
+
     const fStatus = data.ferraillage_status;
     const cStatus = data.coffrage_status;
     const lStatus = data.coulage_status;
 
-    if ((fStatus === 'Terminé' || fStatus === 'termine') && 
-        (cStatus === 'Terminé' || cStatus === 'termine') && 
-        (lStatus === 'Terminé' || lStatus === 'termine')) {
+    if ((fStatus === 'Terminé' || fStatus === 'termine') &&
+      (cStatus === 'Terminé' || cStatus === 'termine') &&
+      (lStatus === 'Terminé' || lStatus === 'termine')) {
       planningStatus = 'Terminé';
-    } 
+    }
     else if (
-      (fStatus && fStatus !== 'Non commencé' && fStatus !== 'non_commence') || 
-      (cStatus && cStatus !== 'Non commencé' && cStatus !== 'non_commence') || 
+      (fStatus && fStatus !== 'Non commencé' && fStatus !== 'non_commence') ||
+      (cStatus && cStatus !== 'Non commencé' && cStatus !== 'non_commence') ||
       (lStatus && lStatus !== 'Non commencé' && lStatus !== 'non_commence')
     ) {
       planningStatus = 'En cours';
     }
 
-    await supabase.from('tasks').update({ status: planningStatus }).eq('id', data.task_id);
+    await supabase.from('tasks').update({ status: planningStatus }).eq('id', taskId);
   }
 };
 
@@ -566,7 +620,7 @@ export const createSlab = async (payload: any) => {
     status: 'Non commencé',
     user_id: uid
   }).select('id').single();
-  
+
   if (error) {
     console.error('createSlab error:', error);
     return;
@@ -612,13 +666,13 @@ export const updateSlabStatus = async (id: number, field: string, newStatus: str
 
   if (data?.task_id) {
     let planningStatus = 'Non commencé';
-    
+
     // Si la dalle globale est marquée comme terminée, ou si son dernier état coulage est terminé
     if (data.status === 'Terminé' || data.coulage_status === 'Terminé' || newStatus === 'Terminé') {
       planningStatus = 'Terminé';
     } else if (
       data.status === 'En cours' ||
-      (data.coffrage_status && data.coffrage_status !== 'Non commencé') || 
+      (data.coffrage_status && data.coffrage_status !== 'Non commencé') ||
       (data.ferraillage_inf_status && data.ferraillage_inf_status !== 'Non commencé') ||
       (data.pose_gaine_status && data.pose_gaine_status !== 'Non commencé') ||
       (data.pose_cable_status && data.pose_cable_status !== 'Non commencé') ||
@@ -629,7 +683,7 @@ export const updateSlabStatus = async (id: number, field: string, newStatus: str
     }
 
     await supabase.from('tasks').update({ status: planningStatus }).eq('id', data.task_id);
-    
+
     // Synchro du `status` natif de la dalle selon progression
     if (data.status !== planningStatus && field !== 'status') {
       await supabase.from('slabs').update({ status: planningStatus }).eq('id', id);
@@ -641,7 +695,7 @@ export const deleteSlab = async (id: number) => {
   const { data: slab } = await supabase.from('slabs').select('task_id').eq('id', id).single();
   const { error } = await supabase.from('slabs').delete().eq('id', id);
   if (error) console.error('deleteSlab error:', error);
-  
+
   if (slab?.task_id) {
     await supabase.from('tasks').delete().eq('id', slab.task_id);
   }
