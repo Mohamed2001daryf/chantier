@@ -193,12 +193,14 @@ export default function Dashboard() {
             const s = e as any;
             const tSurf = parseFloat(s.surface) || 0;
             const cSurf = parseFloat(s.surface_coulee) || 0;
-            // Si surface_totale_dalle override → on cumule uniquement les m² coulés (le total est déjà fixé)
-            // Sinon → on cumule aussi le total par dalle individuelle
+            // Si surface_totale_dalle override -> on cumule uniquement les m² coulés des dalles terminées
+            // Sinon -> on cumule aussi le total par dalle individuelle (fallback unitaire géré plus bas si total=0)
             if (!(surfaceTotaleDalle && surfaceTotaleDalle > 0)) {
               p.total += tSurf;
             }
-            p.done += isDone ? tSurf : cSurf;
+            if (isDone) {
+              p.done += cSurf || tSurf;
+            }
           } else {
             p.total++;
             if (isDone) p.done++;
@@ -297,7 +299,7 @@ export default function Dashboard() {
           renforcement_status: s.renforcement_status,
           coulage_status: s.coulage_status,
           coffrage_date: s.coffrage_date,
-          ferraillage_inf_date: s.ferraillage_inf_status === 'Terminé' ? s.ferraillage_inf_date : undefined,
+          ferraillage_inf_date: s.ferraillage_inf_date,
           pose_gaine_date: s.pose_gaine_date,
           pose_cable_date: s.pose_cable_date,
           renforcement_date: s.renforcement_date,
@@ -734,12 +736,8 @@ export default function Dashboard() {
 
             const formatDate = (dateStr?: string) => {
               if (!dateStr) return '—';
-              try {
-                const [y, m, d] = dateStr.split('-');
-                return `${d}/${m}/${y.substring(2)}`;
-              } catch {
-                return '—';
-              }
+              const d = new Date(dateStr);
+              return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getFullYear()).slice(2)}`;
             };
 
             return (

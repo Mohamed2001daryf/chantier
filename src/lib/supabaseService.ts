@@ -662,14 +662,16 @@ export const createSlab = async (payload: any) => {
 
 export const updateSlabStatus = async (id: number, field: string, newStatus: string) => {
   const updatePayload: any = { [field]: newStatus };
+  const isTermine = newStatus === 'Terminé' || newStatus === 'termine';
 
-  // Si passage à 'Terminé', on enregistre la date du jour
-  if (newStatus === 'Terminé') {
+  // Mapping étape -> date
+  const ptFields = ['coffrage_status', 'ferraillage_inf_status', 'pose_gaine_status', 'pose_cable_status', 'renforcement_status', 'coulage_status'];
+  if (ptFields.includes(field)) {
     const dateField = field.replace('_status', '_date');
-    // On vérifie que c'est bien un champ d'étape PT (coffrage, ferraillage_inf, etc.)
-    const ptFields = ['coffrage_status', 'ferraillage_inf_status', 'pose_gaine_status', 'pose_cable_status', 'renforcement_status', 'coulage_status'];
-    if (ptFields.includes(field)) {
+    if (isTermine) {
       updatePayload[dateField] = new Date().toISOString().split('T')[0];
+    } else {
+      updatePayload[dateField] = null;
     }
   }
 
@@ -688,24 +690,25 @@ export const updateSlabStatus = async (id: number, field: string, newStatus: str
   if (data?.task_id) {
     let planningStatus = 'Non commencé';
 
-    // Si la dalle globale est marquée comme terminée, ou si son dernier état coulage est terminé
-    if (data.status === 'Terminé' || data.coulage_status === 'Terminé' || newStatus === 'Terminé') {
+    const checkTermine = (s: string) => s === 'Terminé' || s === 'termine';
+    const checkEnCours = (s: string) => s && s !== 'Non commencé' && s !== 'non_commence';
+
+    if (checkTermine(data.status) || checkTermine(data.coulage_status) || isTermine) {
       planningStatus = 'Terminé';
     } else if (
       data.status === 'En cours' ||
-      (data.coffrage_status && data.coffrage_status !== 'Non commencé') ||
-      (data.ferraillage_inf_status && data.ferraillage_inf_status !== 'Non commencé') ||
-      (data.pose_gaine_status && data.pose_gaine_status !== 'Non commencé') ||
-      (data.pose_cable_status && data.pose_cable_status !== 'Non commencé') ||
-      (data.renforcement_status && data.renforcement_status !== 'Non commencé') ||
-      (data.coulage_status && data.coulage_status !== 'Non commencé')
+      checkEnCours(data.coffrage_status) ||
+      checkEnCours(data.ferraillage_inf_status) ||
+      checkEnCours(data.pose_gaine_status) ||
+      checkEnCours(data.pose_cable_status) ||
+      checkEnCours(data.renforcement_status) ||
+      checkEnCours(data.coulage_status)
     ) {
       planningStatus = 'En cours';
     }
 
     await supabase.from('tasks').update({ status: planningStatus }).eq('id', data.task_id);
 
-    // Synchro du `status` natif de la dalle selon progression
     if (data.status !== planningStatus && field !== 'status') {
       await supabase.from('slabs').update({ status: planningStatus }).eq('id', id);
     }
