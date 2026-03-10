@@ -191,15 +191,8 @@ export default function Dashboard() {
 
           if (e.normalizedType === 'Dalles') {
             const s = e as any;
-            const tSurf = parseFloat(s.surface) || 0;
-            const cSurf = parseFloat(s.surface_coulee) || 0;
-            // Si surface_totale_dalle override -> on cumule uniquement les m² coulés des dalles terminées
-            // Sinon -> on cumule aussi le total par dalle individuelle (fallback unitaire géré plus bas si total=0)
-            if (!(surfaceTotaleDalle && surfaceTotaleDalle > 0)) {
-              p.total += tSurf;
-            }
             if (isDone) {
-              p.done += cSurf || tSurf;
+              p.done += (parseFloat(s.surface_coulee) || 0);
             }
           } else {
             p.total++;
@@ -289,7 +282,6 @@ export default function Dashboard() {
           blockName: block?.name || 'Inconnu',
           floorId: s.floor_id,
           floorName: floor?.name || 'Inconnu',
-          surface: s.surface || 0,
           surface_coulee: (s as any).surface_coulee || 0,
           pct,
           coffrage_status: s.coffrage_status,

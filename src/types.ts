@@ -36,7 +36,6 @@ export interface Slab {
   floor_name?: string;
   name: string;
   axes: string;
-  surface: number;
   start_date?: string;
   end_date?: string;
   status: string;
@@ -164,7 +163,6 @@ export interface DashboardStats {
     blockName: string;
     floorId: number;
     floorName: string;
-    surface: number;
     surface_coulee: number;
     pct: number;
     coffrage_status: string;

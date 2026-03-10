@@ -316,8 +316,6 @@ export const createTask = async (payload: any) => {
           floor_id: finalFloorId,
           name: payload.element,
           axes: payload.axes || null,
-          surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
-          start_date: payload.start_date,
           end_date: payload.end_date,
           status: payload.status || 'Non commencé',
           task_id: taskData.id,
@@ -419,7 +417,7 @@ export const updateTask = async (id: number, payload: any) => {
     if (slabId) {
       await supabase.from('slabs').update({
         block_id: payload.block_id, floor_id: payload.floor_id, name: payload.element,
-        axes: payload.axes, surface: payload.surface, start_date: payload.start_date,
+        axes: payload.axes, start_date: payload.start_date,
         end_date: payload.end_date, status: payload.status
       }).eq('id', slabId);
     } else if (elementId) {
@@ -623,7 +621,6 @@ export const createSlab = async (payload: any) => {
     floor_id: payload.floor_id || null,
     name: payload.name || null,
     axes: payload.axes || null,
-    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
     start_date: payload.start_date || null,
     end_date: payload.end_date || null,
     status: 'Non commencé',
@@ -647,7 +644,6 @@ export const createSlab = async (payload: any) => {
     start_date: startDate, end_date: endDate, duration,
     status: 'Non commencé', element_type: 'Dalle',
     slab_id: slabId, axes: payload.axes,
-    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
     user_id: uid
   }).select('id').single();
 
@@ -731,7 +727,6 @@ export const updateSlab = async (id: number, payload: any) => {
     block_id: payload.block_id,
     floor_id: payload.floor_id,
     axes: payload.axes || null,
-    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
   }).eq('id', id);
   if (error) console.error('updateSlab error:', error);
 
@@ -741,7 +736,6 @@ export const updateSlab = async (id: number, payload: any) => {
     block_id: payload.block_id,
     floor_id: payload.floor_id,
     axes: payload.axes || null,
-    surface: payload.surface ? parseFloat(payload.surface.toString()) : 0,
   }).eq('slab_id', id);
 };
 
