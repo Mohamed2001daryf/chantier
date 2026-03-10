@@ -296,6 +296,12 @@ export default function Dashboard() {
           pose_cable_status: s.pose_cable_status,
           renforcement_status: s.renforcement_status,
           coulage_status: s.coulage_status,
+          coffrage_date: s.coffrage_date,
+          ferraillage_inf_date: s.ferraillage_inf_status === 'Terminé' ? s.ferraillage_inf_date : undefined,
+          pose_gaine_date: s.pose_gaine_date,
+          pose_cable_date: s.pose_cable_date,
+          renforcement_date: s.renforcement_date,
+          coulage_date: s.coulage_date,
           start_date: s.start_date || '',
           end_date: s.end_date || '',
           order_number: floor?.order_number || 0,
@@ -681,6 +687,125 @@ export default function Dashboard() {
           ) : (
             <p className="italic text-gray-400 py-8 text-center z-10">Aucune donnée d'avancement disponible.</p>
           )}
+        </div>
+
+        {/* LIGNE 7 : DALLES POST-TENSION DÉTAIL */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <h3 className="text-lg font-bold flex items-center gap-2 text-[#1E293B]">
+              <Layers className="text-[#F97316]" size={20} />
+              Détail Avancement — Dalles Post-Tension
+            </h3>
+            <select
+              value={selectedDallesBlock}
+              onChange={e => setSelectedDallesBlock(e.target.value)}
+              className="px-3 py-1.5 bg-[#F1F5F9] border border-gray-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#F97316] text-[#1E293B]"
+            >
+              <option value="all">Tous les blocs</option>
+              {Array.from(new Set(stats.slabsDetail.map(s => s.blockName))).map(bn => (
+                <option key={bn} value={bn}>{bn}</option>
+              ))}
+            </select>
+          </div>
+
+          {(() => {
+            const ETAPES_DISPLAY = [
+              { key: 'coffrage_status', label: 'COFFRAGE' },
+              { key: 'ferraillage_inf_status', label: 'FERR. INF.' },
+              { key: 'pose_gaine_status', label: 'GAINES' },
+              { key: 'pose_cable_status', label: 'CÂBLES' },
+              { key: 'renforcement_status', label: 'RENFORT' },
+              { key: 'coulage_status', label: 'COULAGE' },
+            ] as const;
+
+            const filtered = stats.slabsDetail.filter(s =>
+              selectedDallesBlock === 'all' || s.blockName === selectedDallesBlock
+            );
+
+            if (filtered.length === 0) {
+              return <p className="italic text-gray-400 py-8 text-center">Aucune dalle post-tension disponible.</p>;
+            }
+
+            const getStatusIcon = (status: string) => {
+              if (status === 'Terminé') return { icon: '✅', bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' };
+              if (status === 'En cours') return { icon: '⏳', bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-orange-200' };
+              return { icon: '⬜', bg: 'bg-gray-50', text: 'text-gray-400', border: 'border-gray-100' };
+            };
+
+            const formatDate = (dateStr?: string) => {
+              if (!dateStr) return '—';
+              try {
+                const [y, m, d] = dateStr.split('-');
+                return `${d}/${m}/${y.substring(2)}`;
+              } catch {
+                return '—';
+              }
+            };
+
+            return (
+              <div className="space-y-5">
+                {filtered.map(slab => {
+                  const badgeBg = slab.pct === 100 ? 'bg-green-100 text-green-700'
+                    : slab.pct > 0 ? 'bg-orange-100 text-orange-700'
+                      : 'bg-gray-100 text-gray-500';
+                  const barColor = slab.pct === 100 ? 'bg-[#22C55E]'
+                    : slab.pct > 0 ? 'bg-[#F97316]'
+                      : 'bg-[#CBD5E1]';
+
+                  return (
+                    <div key={slab.id} className="border border-gray-100 rounded-2xl overflow-hidden hover:border-[#F97316]/30 transition-all">
+                      {/* Header dalle */}
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-4 py-3 bg-[#F8FAFC] border-b border-gray-100">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-[#001F3F] text-white flex items-center justify-center text-sm font-black shrink-0">
+                            {slab.pct}%
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-black text-[#001F3F]">{slab.name}</span>
+                              {slab.axes && <span className="text-[10px] font-mono text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-200 uppercase">{slab.axes}</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 font-medium">
+                              {slab.blockName} — <span className="text-[#F97316] font-bold">{slab.floorName}</span>
+                              {slab.surface > 0 && <span className="ml-2 text-gray-400">· {slab.surface} m²</span>}
+                              {slab.surface_coulee > 0 && <span className="ml-1 text-gray-400">({slab.surface_coulee} m² coulée)</span>}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+                          <div className="flex-1 md:w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div className={`h-full ${barColor} transition-all duration-500`} style={{ width: `${slab.pct}%` }} />
+                          </div>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${badgeBg}`}>
+                            {slab.pct === 100 ? '✅ Terminé' : `${slab.pct}%`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tableau des étapes */}
+                      <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-y sm:divide-y-0 divide-gray-100">
+                        {ETAPES_DISPLAY.map(etape => {
+                          const st = (slab as any)[etape.key] || 'Non commencé';
+                          const dt = (slab as any)[etape.key.replace('_status', '_date')];
+                          const { icon, bg, text, border } = getStatusIcon(st);
+                          return (
+                            <div key={etape.key} className={`flex flex-col items-center justify-center py-3 gap-1 ${bg} border-b sm:border-b-0 ${border} transition-colors`}>
+                              <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">{etape.label}</span>
+                              <span className="text-lg">{icon}</span>
+                              <span className={`text-[10px] font-bold ${text}`}>
+                                {st === 'Terminé' ? 'Terminé' : st === 'En cours' ? 'En cours' : '—'}
+                              </span>
+                              <span className="text-[9px] text-gray-400 font-mono mt-0.5">{formatDate(dt)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
       </div>

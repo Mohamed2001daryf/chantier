@@ -661,11 +661,23 @@ export const createSlab = async (payload: any) => {
 };
 
 export const updateSlabStatus = async (id: number, field: string, newStatus: string) => {
+  const updatePayload: any = { [field]: newStatus };
+
+  // Si passage à 'Terminé', on enregistre la date du jour
+  if (newStatus === 'Terminé') {
+    const dateField = field.replace('_status', '_date');
+    // On vérifie que c'est bien un champ d'étape PT (coffrage, ferraillage_inf, etc.)
+    const ptFields = ['coffrage_status', 'ferraillage_inf_status', 'pose_gaine_status', 'pose_cable_status', 'renforcement_status', 'coulage_status'];
+    if (ptFields.includes(field)) {
+      updatePayload[dateField] = new Date().toISOString().split('T')[0];
+    }
+  }
+
   const { data, error } = await supabase
     .from('slabs')
-    .update({ [field]: newStatus })
+    .update(updatePayload)
     .eq('id', id)
-    .select('task_id, status, coffrage_status, ferraillage_inf_status, pose_gaine_status, pose_cable_status, renforcement_status, coulage_status')
+    .select('task_id, status, coffrage_status, ferraillage_inf_status, pose_gaine_status, pose_cable_status, renforcement_status, coulage_status, coffrage_date, ferraillage_inf_date, pose_gaine_date, pose_cable_date, renforcement_date, coulage_date')
     .single();
 
   if (error) {

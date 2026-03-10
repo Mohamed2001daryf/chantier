@@ -51,6 +51,12 @@ export interface Slab {
   poids_acier?: number;
   task_id?: number; // Linked task from Planning
   surface_coulee?: number;
+  coffrage_date?: string;
+  ferraillage_inf_date?: string;
+  pose_gaine_date?: string;
+  pose_cable_date?: string;
+  renforcement_date?: string;
+  coulage_date?: string;
 }
 
 export interface Task {
@@ -167,6 +173,12 @@ export interface DashboardStats {
     pose_cable_status: string;
     renforcement_status: string;
     coulage_status: string;
+    coffrage_date?: string;
+    ferraillage_inf_date?: string;
+    pose_gaine_date?: string;
+    pose_cable_date?: string;
+    renforcement_date?: string;
+    coulage_date?: string;
     start_date: string;
     end_date: string;
     order_number: number;
