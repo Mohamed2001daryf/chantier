@@ -2,37 +2,13 @@ import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
 
-if (!supabaseUrl || !supabaseKey) {
-    console.log('Missing env variables');
-    process.exit(1);
+async function checkSlabs() {
+    const { data, error } = await supabase.from('slabs').select('*').limit(2);
+    if (error) { console.error('Error:', error); return; }
+    if (!data || data.length === 0) { console.log('Table slabs VIDE'); return; }
+    console.log('=== slabs colonnes ===', Object.keys(data[0]));
+    console.log('=== slabs data[0] ===', JSON.stringify(data[0], null, 2));
 }
-
-const supabase = createClient(supabaseUrl, supabaseKey);
-
-async function check() {
-    console.log('=== ÉTAPE 1 ===');
-    const { data: ve } = await supabase.from('vertical_elements').select('*').limit(1);
-    const { data: tk } = await supabase.from('tasks').select('*').limit(1);
-    console.log('=== vertical_elements colonnes ===', ve && ve.length > 0 ? Object.keys(ve[0]) : 'VIDE');
-    console.log('=== vertical_elements data ===', ve?.[0]);
-    console.log('=== tasks colonnes ===', tk && tk.length > 0 ? Object.keys(tk[0]) : 'VIDE');
-    console.log('=== tasks data ===', tk?.[0]);
-
-    console.log('\n=== ÉTAPE 2 ===');
-    const { data: q1 } = await supabase.from('vertical_elements').select('id, name, task_id').eq('name', 'p001');
-    console.log('-- Voir si task_id est rempli dans vertical_elements pour p001');
-    console.log(q1);
-
-    const { data: q2 } = await supabase.from('tasks').select('id, element, status, element_id').eq('element', 'p001');
-    console.log('-- Voir la tâche p001 dans tasks');
-    console.log(q2);
-
-    const { data: q3, count } = await supabase.from('vertical_elements').select('*', { count: 'exact', head: true }).is('task_id', null);
-    console.log('-- Compter combien d\'éléments ont task_id NULL');
-    console.log('sans_lien:', count);
-}
-
-check();
+checkSlabs();

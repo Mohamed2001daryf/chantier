@@ -150,4 +150,25 @@ export interface DashboardStats {
     date: string;
     globalProgress: number;
   }[];
+  slabsDetail: {
+    id: number;
+    name: string;
+    axes: string;
+    blockId: number;
+    blockName: string;
+    floorId: number;
+    floorName: string;
+    surface: number;
+    surface_coulee: number;
+    pct: number;
+    coffrage_status: string;
+    ferraillage_inf_status: string;
+    pose_gaine_status: string;
+    pose_cable_status: string;
+    renforcement_status: string;
+    coulage_status: string;
+    start_date: string;
+    end_date: string;
+    order_number: number;
+  }[];
 }

@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedElementBlock, setSelectedElementBlock] = useState<string>('all');
+  const [selectedDallesBlock, setSelectedDallesBlock] = useState<string>('all');
 
   useEffect(() => {
     loadDashboardData();
@@ -263,6 +264,47 @@ export default function Dashboard() {
         });
       }
 
+      // Dalles Post-Tension Détail
+      const ETAPES_PT = [
+        { key: 'coffrage_status' as const, label: 'COFFRAGE' },
+        { key: 'ferraillage_inf_status' as const, label: 'FERR. INF.' },
+        { key: 'pose_gaine_status' as const, label: 'GAINES' },
+        { key: 'pose_cable_status' as const, label: 'CÂBLES' },
+        { key: 'renforcement_status' as const, label: 'RENFORT' },
+        { key: 'coulage_status' as const, label: 'COULAGE' },
+      ];
+
+      const slabsDetail = slabs.map(s => {
+        const block = blocks.find(b => b.id === s.block_id);
+        const floor = floors.find(f => f.id === s.floor_id);
+        const done = ETAPES_PT.filter(e => s[e.key] === 'Terminé').length;
+        const pct = Math.round((done / ETAPES_PT.length) * 100);
+        return {
+          id: s.id,
+          name: s.name,
+          axes: s.axes || '',
+          blockId: s.block_id,
+          blockName: block?.name || 'Inconnu',
+          floorId: s.floor_id,
+          floorName: floor?.name || 'Inconnu',
+          surface: s.surface || 0,
+          surface_coulee: (s as any).surface_coulee || 0,
+          pct,
+          coffrage_status: s.coffrage_status,
+          ferraillage_inf_status: s.ferraillage_inf_status,
+          pose_gaine_status: s.pose_gaine_status,
+          pose_cable_status: s.pose_cable_status,
+          renforcement_status: s.renforcement_status,
+          coulage_status: s.coulage_status,
+          start_date: s.start_date || '',
+          end_date: s.end_date || '',
+          order_number: floor?.order_number || 0,
+        };
+      }).sort((a, b) => {
+        if (a.order_number !== b.order_number) return a.order_number - b.order_number;
+        return b.pct - a.pct;
+      });
+
       setStats({
         kpis,
         taskStatusPie,
@@ -271,7 +313,8 @@ export default function Dashboard() {
         delayedTasksList,
         progressByFloor,
         teamProductivity,
-        progressOverTime
+        progressOverTime,
+        slabsDetail
       });
 
     } catch (error) {
