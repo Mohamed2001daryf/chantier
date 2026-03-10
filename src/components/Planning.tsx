@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Download, Upload, Trash2, X, Save, Calendar as CalendarIcon, ChevronLeft, ChevronRight, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Plus, Download, Upload, Trash2, X, Save, Calendar as CalendarIcon, ChevronLeft, ChevronRight, FileSpreadsheet, AlertCircle, CheckCircle2, Loader2, Copy, Pencil } from 'lucide-react';
 import { Block, Floor, Task } from '../types';
 import { STATUS_OPTIONS, cn } from '../utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -73,7 +73,7 @@ export default function Planning() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [floors, setFloors] = useState<Floor[]>([]);
-  const [elementTypes, setElementTypes] = useState<{id: number, name: string}[]>([]);
+  const [elementTypes, setElementTypes] = useState<{ id: number, name: string }[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -81,9 +81,9 @@ export default function Planning() {
   const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [formData, setFormData] = useState({ 
-    block_id: '', floor_id: '', element: '', description: '', 
-    start_date: format(new Date(), 'yyyy-MM-dd'), 
+  const [formData, setFormData] = useState({
+    block_id: '', floor_id: '', element: '', description: '',
+    start_date: format(new Date(), 'yyyy-MM-dd'),
     end_date: format(addDays(new Date(), 7), 'yyyy-MM-dd'),
     status: 'Non commencé',
     element_type: '',
@@ -92,7 +92,7 @@ export default function Planning() {
   });
 
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const [viewStartDate, setViewStartDate] = useState(() => {
     const d = new Date(today);
     d.setDate(d.getDate() - 30);
@@ -201,6 +201,44 @@ export default function Planning() {
     }
   };
 
+  const duplicateTask = async (task: Task) => {
+    try {
+      await svcCreateTask({
+        block_id: task.block_id || null,
+        floor_id: task.floor_id || null,
+        element: task.element + ' (copie)',
+        description: task.description,
+        start_date: task.start_date,
+        end_date: task.end_date,
+        duration: task.duration,
+        status: 'Non commencé',
+        element_type: task.element_type || null,
+        axes: task.axes || null,
+        surface: task.surface || 0,
+      });
+      await fetchTasks();
+    } catch (err) {
+      console.error('Erreur duplication tâche:', err);
+    }
+  };
+
+  const openEditModal = (task: Task) => {
+    setSelectedTask(task);
+    setFormData({
+      block_id: task.block_id?.toString() || '',
+      floor_id: task.floor_id?.toString() || '',
+      element: task.element,
+      description: task.description,
+      start_date: task.start_date,
+      end_date: task.end_date,
+      status: task.status,
+      element_type: task.element_type || '',
+      axes: task.axes || '',
+      surface: task.surface?.toString() || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
   const toggleSelectAll = () => {
     if (selectedIds.length === filteredTasks.length && filteredTasks.length > 0) {
       setSelectedIds([]);
@@ -210,7 +248,7 @@ export default function Planning() {
   };
 
   const toggleSelectTask = (id: number) => {
-    setSelectedIds(prev => 
+    setSelectedIds(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
@@ -355,16 +393,16 @@ export default function Planning() {
 
       try {
         await svcCreateTask({
-            block_id: block?.id || null,
-            floor_id: floor?.id || null,
-            element: elementName,
-            description: (descVal || elementName || '').toString().trim(),
-            start_date: startStr,
-            end_date: endStr,
-            duration: Math.abs(duration) || 0,
-            status: mappedStatus,
-            element_type: elementTypeVal ? normalizeElementType(elementTypeVal) : null
-          });
+          block_id: block?.id || null,
+          floor_id: floor?.id || null,
+          element: elementName,
+          description: (descVal || elementName || '').toString().trim(),
+          start_date: startStr,
+          end_date: endStr,
+          duration: Math.abs(duration) || 0,
+          status: mappedStatus,
+          element_type: elementTypeVal ? normalizeElementType(elementTypeVal) : null
+        });
         imported++;
       } catch (err) {
         errors.push(`Ligne ${i + 2}: Erreur lors de l'import de "${elementName}"`);
@@ -483,7 +521,7 @@ export default function Planning() {
         </div>
         <div className="flex flex-wrap gap-2 sm:gap-3">
           {selectedIds.length > 0 && role !== 'viewer' && (
-            <button 
+            <button
               onClick={() => setIsBulkDeleteConfirmOpen(true)}
               className="bg-red-50 border border-red-200 text-red-600 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-red-100 transition-all text-sm"
             >
@@ -494,7 +532,7 @@ export default function Planning() {
           {role !== 'viewer' && (
             <>
               <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.csv,.xml" />
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="bg-white border border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all text-sm"
               >
@@ -503,7 +541,7 @@ export default function Planning() {
               </button>
             </>
           )}
-          <button 
+          <button
             onClick={handleExport}
             className="bg-white border border-gray-200 text-gray-700 px-3 sm:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 transition-all text-sm"
           >
@@ -511,7 +549,7 @@ export default function Planning() {
             Exporter
           </button>
           {role !== 'viewer' && (
-            <button 
+            <button
               onClick={() => setIsModalOpen(true)}
               className="bg-[#FF851B] hover:bg-[#E76A00] text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 text-sm sm:text-base"
             >
@@ -524,14 +562,14 @@ export default function Planning() {
 
       {/* GANTT VIEW MS PROJECT */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col flex-1 overflow-hidden min-h-0">
-        
+
         {/* Gantt Tools Bar */}
         <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4 bg-gray-50/50 shrink-0">
           <div className="flex items-center gap-2">
             <button onClick={() => setViewStartDate(addDays(viewStartDate, -7))} className="p-2 hover:bg-white rounded-lg border border-gray-200 transition-colors text-gray-600">
               <ChevronLeft size={20} />
             </button>
-            <button 
+            <button
               onClick={handleScrollToToday}
               className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm text-[#001F3F] font-bold hover:bg-gray-50 transition-colors shadow-sm"
             >
@@ -544,8 +582,8 @@ export default function Planning() {
 
           <div className="flex items-center gap-3">
             <label className="text-sm font-bold text-gray-500 uppercase tracking-wider hidden md:block">Filtrer :</label>
-            <select 
-              value={selectedBlockFilter} 
+            <select
+              value={selectedBlockFilter}
               onChange={(e) => setSelectedBlockFilter(e.target.value)}
               className="bg-white border border-gray-200 text-[#001F3F] px-3 py-1.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-[#FF851B] outline-none"
             >
@@ -554,8 +592,8 @@ export default function Planning() {
                 <option key={block.id} value={block.id.toString()}>{block.name}</option>
               ))}
             </select>
-            <select 
-              value={selectedFloorFilter} 
+            <select
+              value={selectedFloorFilter}
               onChange={(e) => setSelectedFloorFilter(e.target.value)}
               className="bg-white border border-gray-200 text-[#001F3F] px-3 py-1.5 rounded-xl font-bold text-sm focus:ring-2 focus:ring-[#FF851B] outline-none"
             >
@@ -564,12 +602,12 @@ export default function Planning() {
                 <option key={f.id} value={f.id.toString()}>{f.name}</option>
               ))}
             </select>
-            <input 
-              type="text" 
-              placeholder="Rechercher..." 
-              value={searchQuery} 
-              onChange={e => setSearchQuery(e.target.value)} 
-              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-1.5 rounded-xl text-sm focus:ring-2 focus:ring-[#FF851B] outline-none w-[150px] md:w-[200px]" 
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="bg-white border border-gray-200 text-[#001F3F] px-4 py-1.5 rounded-xl text-sm focus:ring-2 focus:ring-[#FF851B] outline-none w-[150px] md:w-[200px]"
             />
           </div>
 
@@ -582,15 +620,15 @@ export default function Planning() {
 
         {/* SPLIT LAYOUT TABLE + GANTT GRID */}
         <div className="flex-1 overflow-hidden flex relative bg-white">
-          
+
           {/* LEFT TABLE */}
           <div className="w-[350px] md:w-[450px] lg:w-[500px] flex-shrink-0 border-r border-gray-200 flex flex-col z-20 shadow-[2px_0_10px_rgba(0,0,0,0.03)] bg-white">
-            
+
             {/* Headers Left */}
             <div className="flex bg-gray-50 border-b border-gray-200 text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0" style={{ height: '72px' }}>
               {role !== 'viewer' && (
                 <div className="w-10 flex items-center justify-center border-r border-gray-200 shrink-0">
-                  <input type="checkbox" checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length} onChange={toggleSelectAll} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"/>
+                  <input type="checkbox" checked={filteredTasks.length > 0 && selectedIds.length === filteredTasks.length} onChange={toggleSelectAll} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]" />
                 </div>
               )}
               <div className="flex-1 p-2 flex items-center border-r border-gray-200 min-w-[120px]">Tâche</div>
@@ -598,12 +636,15 @@ export default function Planning() {
               <div className="w-16 p-2 flex items-center border-r border-gray-200 truncate">Début</div>
               <div className="w-16 p-2 flex items-center border-r border-gray-200 truncate">Fin</div>
               <div className="w-12 md:w-16 p-2 flex items-center truncate">Durée</div>
+              {role !== 'viewer' && (
+                <div className="w-20 p-2 flex items-center">Actions</div>
+              )}
             </div>
 
             {/* Rows Left Scrollable */}
-            <div 
-              className="flex-1 overflow-y-auto no-scrollbar" 
-              ref={leftTableScrollRef} 
+            <div
+              className="flex-1 overflow-y-auto no-scrollbar"
+              ref={leftTableScrollRef}
               onScroll={syncScrollLeftToRight}
             >
               {filteredTasks.map((task, i) => {
@@ -614,40 +655,44 @@ export default function Planning() {
                   <div key={task.id} className="flex h-10 border-b border-gray-100 hover:bg-gray-50/80 transition-colors text-xs text-[#001F3F] group">
                     {role !== 'viewer' && (
                       <div className="w-10 flex items-center justify-center border-r border-gray-100 shrink-0">
-                        <input type="checkbox" checked={selectedIds.includes(task.id)} onChange={() => toggleSelectTask(task.id)} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]"/>
+                        <input type="checkbox" checked={selectedIds.includes(task.id)} onChange={() => toggleSelectTask(task.id)} className="w-3.5 h-3.5 rounded border-gray-300 text-[#FF851B] focus:ring-[#FF851B]" />
                       </div>
                     )}
-                    <div className="flex-1 p-2 border-r border-gray-100 flex items-center justify-between min-w-[120px] bg-white group-hover:bg-gray-50/80">
-                      <span 
-                        className={cn("font-bold truncate", role !== 'viewer' && "cursor-pointer hover:underline")}
-                        onClick={() => {
-                          if (role === 'viewer') return;
-                          setSelectedTask(task);
-                          setFormData({
-                            block_id: task.block_id?.toString() || '',
-                            floor_id: task.floor_id?.toString() || '',
-                            element: task.element,
-                            description: task.description,
-                            start_date: task.start_date,
-                            end_date: task.end_date,
-                            status: task.status,
-                            element_type: task.element_type || '',
-                            axes: task.axes || '',
-                            surface: task.surface?.toString() || ''
-                          });
-                          setIsEditModalOpen(true);
-                        }}
+                    <div className="flex-1 p-2 border-r border-gray-100 flex items-center min-w-[120px] bg-white group-hover:bg-gray-50/80">
+                      <span
+                        className={cn("font-bold truncate flex-1", role !== 'viewer' && "cursor-pointer hover:underline")}
+                        onClick={() => { if (role !== 'viewer') openEditModal(task); }}
                       >{task.element}</span>
-                      {role !== 'viewer' && (
-                        <button onClick={() => { setSelectedTask(task); setIsDeleteConfirmOpen(true); }} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity">
-                          <Trash2 size={12} />
-                        </button>
-                      )}
                     </div>
                     <div className="w-16 md:w-20 p-2 border-r border-gray-100 flex items-center truncate text-gray-500 hidden md:flex">{task.block_name || '-'}</div>
                     <div className="w-16 p-2 border-r border-gray-100 flex items-center truncate text-gray-600">{format(start, 'dd/MM')}</div>
                     <div className="w-16 p-2 border-r border-gray-100 flex items-center truncate text-gray-600">{format(end, 'dd/MM')}</div>
-                    <div className="w-12 md:w-16 p-2 flex items-center font-bold text-gray-700">{duration} j</div>
+                    <div className="w-12 md:w-16 p-2 flex items-center font-bold text-gray-700 border-r border-gray-100">{duration} j</div>
+                    {role !== 'viewer' && (
+                      <div className="w-20 flex items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => openEditModal(task)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-400 hover:text-blue-600 transition-colors"
+                          title="Modifier"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button
+                          onClick={() => duplicateTask(task)}
+                          className="p-1.5 rounded-lg hover:bg-orange-50 text-orange-400 hover:text-orange-600 transition-colors"
+                          title="Dupliquer"
+                        >
+                          <Copy size={12} />
+                        </button>
+                        <button
+                          onClick={() => { setSelectedTask(task); setIsDeleteConfirmOpen(true); }}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
+                          title="Supprimer"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -655,14 +700,14 @@ export default function Planning() {
           </div>
 
           {/* RIGHT GANTT */}
-          <div 
+          <div
             className="flex-1 overflow-x-auto overflow-y-auto bg-white relative"
             ref={ganttScrollRef}
             onScroll={syncScrollRightToLeft}
             style={{ overflowX: 'auto', width: '100%' }}
           >
             <div style={{ width: `${timelineDays.length * COL_WIDTH}px`, position: 'relative' }} className="min-w-max">
-              
+
               {/* Timeline Headers (Sticky Top) */}
               <div className="sticky top-0 z-[15] bg-white pointer-events-none">
                 {/* Ligne 1 : Mois */}
@@ -683,7 +728,7 @@ export default function Planning() {
                         "flex flex-col items-center justify-center border-r border-gray-100 shrink-0",
                         isToday ? "bg-[#FFF7ED]" : isWE ? "bg-[#F8FAFC]" : ""
                       )} style={{ width: `${COL_WIDTH}px` }}>
-                        <span className={isToday ? "text-[#F97316] font-bold" : "text-gray-400"}>{format(day, 'E', {locale: fr}).charAt(0).toUpperCase()}</span>
+                        <span className={isToday ? "text-[#F97316] font-bold" : "text-gray-400"}>{format(day, 'E', { locale: fr }).charAt(0).toUpperCase()}</span>
                         <span className={isToday ? "text-[#F97316] font-black" : "text-gray-600 font-medium"}>{format(day, 'dd')}</span>
                       </div>
                     );
@@ -712,10 +757,10 @@ export default function Planning() {
                 {filteredTasks.map((task) => {
                   const tStart = parseISO(task.start_date);
                   const tEnd = parseISO(task.end_date);
-                  
+
                   const offsetDays = differenceInDays(tStart, viewStartDate);
                   const durationDays = differenceInDays(tEnd, tStart) + 1;
-                  
+
                   // Calcul en pixels
                   const barLeft = offsetDays * COL_WIDTH;
                   const barWidth = Math.max(durationDays * COL_WIDTH, COL_WIDTH); // minimum 1 jour (1 colonne)
@@ -729,11 +774,11 @@ export default function Planning() {
                   return (
                     <div key={task.id} className="h-10 border-b border-gray-50 flex items-center relative hover:bg-amber-50/20 w-full group">
                       {isVisible && (
-                        <div 
+                        <div
                           className="absolute h-[22px] rounded md:rounded-md shadow-sm overflow-hidden flex items-center px-2 cursor-pointer transition-all hover:brightness-110 hover:shadow-md"
                           style={{
                             left: `${Math.max(0, barLeft)}px`,
-                            width: `${Math.min(barWidth, barWidth + barLeft)}px`, 
+                            width: `${Math.min(barWidth, barWidth + barLeft)}px`,
                             backgroundColor: bgColor
                           }}
                           onClick={() => {
@@ -773,7 +818,7 @@ export default function Planning() {
       {/* Modal Nouvelle Tâche / Modifier Tâche */}
       {(isModalOpen || isEditModalOpen) && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden"
@@ -791,9 +836,9 @@ export default function Planning() {
             <form onSubmit={handleSubmit} className="p-6 grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Type élément</label>
-                <select 
-                  value={formData.element_type} 
-                  onChange={e => setFormData({ ...formData, element_type: e.target.value })} 
+                <select
+                  value={formData.element_type}
+                  onChange={e => setFormData({ ...formData, element_type: e.target.value })}
                   className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#FF851B] outline-none"
                 >
                   <option value="">Aucun / Autre</option>
@@ -867,204 +912,204 @@ export default function Planning() {
 
       {/* Modal Import Preview */}
       <AnimatePresence>
-      {(importStatus === 'preview' || importStatus === 'importing' || importStatus === 'success' || importStatus === 'error') && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col"
-          >
-            {/* Header */}
-            <div className="bg-[#001F3F] p-6 text-white flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-3">
-                <FileSpreadsheet size={24} />
-                <div>
-                  <h3 className="text-xl font-bold">Import Excel</h3>
-                  <p className="text-white/60 text-sm">{importFileName}</p>
+        {(importStatus === 'preview' || importStatus === 'importing' || importStatus === 'success' || importStatus === 'error') && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden max-h-[90vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="bg-[#001F3F] p-6 text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet size={24} />
+                  <div>
+                    <h3 className="text-xl font-bold">Import Excel</h3>
+                    <p className="text-white/60 text-sm">{importFileName}</p>
+                  </div>
                 </div>
+                <button onClick={closeImportModal} className="hover:bg-white/10 p-2 rounded-lg transition-colors">
+                  <X size={24} />
+                </button>
               </div>
-              <button onClick={closeImportModal} className="hover:bg-white/10 p-2 rounded-lg transition-colors">
-                <X size={24} />
-              </button>
-            </div>
 
-            <div className="overflow-y-auto flex-1 p-6 space-y-6">
-              {/* Error State */}
-              {importStatus === 'error' && (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <AlertCircle size={32} />
-                  </div>
-                  <h4 className="text-lg font-bold text-[#001F3F] mb-2">Erreur d'import</h4>
-                  {importResult.errors.map((err, i) => (
-                    <p key={i} className="text-red-600 text-sm">{err}</p>
-                  ))}
-                  <button onClick={closeImportModal} className="mt-6 px-6 py-3 rounded-xl font-bold text-white bg-[#FF851B] hover:bg-[#E76A00] transition-all">
-                    Fermer
-                  </button>
-                </div>
-              )}
-
-              {/* Success State */}
-              {importStatus === 'success' && (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <CheckCircle2 size={32} />
-                  </div>
-                  <h4 className="text-lg font-bold text-[#001F3F] mb-2">Import terminé !</h4>
-                  <div className="flex justify-center gap-6 text-sm mt-4">
-                    <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
-                      <p className="text-green-700 font-bold text-2xl">{importResult.imported}</p>
-                      <p className="text-green-600">importées</p>
+              <div className="overflow-y-auto flex-1 p-6 space-y-6">
+                {/* Error State */}
+                {importStatus === 'error' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertCircle size={32} />
                     </div>
-                    {importResult.skipped > 0 && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
-                        <p className="text-yellow-700 font-bold text-2xl">{importResult.skipped}</p>
-                        <p className="text-yellow-600">ignorées</p>
+                    <h4 className="text-lg font-bold text-[#001F3F] mb-2">Erreur d'import</h4>
+                    {importResult.errors.map((err, i) => (
+                      <p key={i} className="text-red-600 text-sm">{err}</p>
+                    ))}
+                    <button onClick={closeImportModal} className="mt-6 px-6 py-3 rounded-xl font-bold text-white bg-[#FF851B] hover:bg-[#E76A00] transition-all">
+                      Fermer
+                    </button>
+                  </div>
+                )}
+
+                {/* Success State */}
+                {importStatus === 'success' && (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CheckCircle2 size={32} />
+                    </div>
+                    <h4 className="text-lg font-bold text-[#001F3F] mb-2">Import terminé !</h4>
+                    <div className="flex justify-center gap-6 text-sm mt-4">
+                      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                        <p className="text-green-700 font-bold text-2xl">{importResult.imported}</p>
+                        <p className="text-green-600">importées</p>
                       </div>
-                    )}
-                  </div>
-                  {importResult.errors.length > 0 && (
-                    <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 text-left max-h-32 overflow-y-auto">
-                      <p className="text-red-700 font-bold text-sm mb-1">Erreurs :</p>
-                      {importResult.errors.map((err, i) => (
-                        <p key={i} className="text-red-600 text-xs">{err}</p>
-                      ))}
-                    </div>
-                  )}
-                  <button onClick={closeImportModal} className="mt-6 px-6 py-3 rounded-xl font-bold text-white bg-[#FF851B] hover:bg-[#E76A00] transition-all">
-                    Fermer
-                  </button>
-                </div>
-              )}
-
-              {/* Importing State */}
-              {importStatus === 'importing' && (
-                <div className="text-center py-8">
-                  <Loader2 size={48} className="animate-spin text-[#FF851B] mx-auto mb-4" />
-                  <h4 className="text-lg font-bold text-[#001F3F] mb-4">Import en cours...</h4>
-                  <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-3 overflow-hidden">
-                    <motion.div 
-                      className="bg-[#FF851B] h-full rounded-full"
-                      initial={{ width: '0%' }}
-                      animate={{ width: `${importProgress}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
-                  <p className="text-gray-500 text-sm mt-2">{importProgress}% — {Math.round(importData.length * importProgress / 100)} / {importData.length} lignes</p>
-                </div>
-              )}
-
-              {/* Preview State */}
-              {importStatus === 'preview' && (
-                <>
-                  {/* Column Mapping */}
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Correspondance des colonnes</h4>
-                    <p className="text-xs text-gray-400 mb-4">Vérifiez et ajustez la correspondance automatique entre les colonnes de votre fichier et les champs de ChantierPro.</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {Object.entries(FIELD_LABELS).map(([field, label]) => (
-                        <div key={field} className="space-y-1">
-                          <label className="block text-xs font-bold text-gray-700">{label}</label>
-                          <select
-                            value={columnMapping[field] || ''}
-                            onChange={(e) => setColumnMapping(prev => ({ ...prev, [field]: e.target.value }))}
-                            className={cn(
-                              "w-full px-3 py-2 rounded-lg border text-sm focus:ring-2 focus:ring-[#FF851B] outline-none transition-all",
-                              columnMapping[field] 
-                                ? "border-green-300 bg-green-50 text-green-800" 
-                                : "border-gray-200 bg-white text-gray-500"
-                            )}
-                          >
-                            <option value="">— Ignorer —</option>
-                            {importHeaders.map(h => (
-                              <option key={h} value={h}>{h}</option>
-                            ))}
-                          </select>
+                      {importResult.skipped > 0 && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+                          <p className="text-yellow-700 font-bold text-2xl">{importResult.skipped}</p>
+                          <p className="text-yellow-600">ignorées</p>
                         </div>
-                      ))}
+                      )}
                     </div>
-                    {!columnMapping.element && (
-                      <div className="mt-3 flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
-                        <AlertCircle size={16} />
-                        <span>Aucune colonne «Élément / Tâche» détectée. Sélectionnez-la manuellement pour que l'import fonctionne.</span>
+                    {importResult.errors.length > 0 && (
+                      <div className="mt-4 bg-red-50 border border-red-200 rounded-xl p-4 text-left max-h-32 overflow-y-auto">
+                        <p className="text-red-700 font-bold text-sm mb-1">Erreurs :</p>
+                        {importResult.errors.map((err, i) => (
+                          <p key={i} className="text-red-600 text-xs">{err}</p>
+                        ))}
                       </div>
                     )}
+                    <button onClick={closeImportModal} className="mt-6 px-6 py-3 rounded-xl font-bold text-white bg-[#FF851B] hover:bg-[#E76A00] transition-all">
+                      Fermer
+                    </button>
                   </div>
+                )}
 
-                  {/* Data Preview */}
-                  <div>
-                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">
-                      Aperçu des données ({importData.length} lignes)
-                    </h4>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50">
-                            <th className="px-3 py-2 text-left text-xs font-bold text-gray-400 uppercase">#</th>
-                            {importHeaders.slice(0, 8).map(h => (
-                              <th key={h} className="px-3 py-2 text-left text-xs font-bold text-gray-400 uppercase whitespace-nowrap">
-                                {h}
-                                {Object.entries(columnMapping).find(([, v]) => v === h) && (
-                                  <span className="ml-1 text-green-500">✓</span>
-                                )}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {importData.slice(0, 5).map((row, i) => (
-                            <tr key={i} className="hover:bg-gray-50/50">
-                              <td className="px-3 py-2 text-gray-400 font-mono text-xs">{i + 1}</td>
+                {/* Importing State */}
+                {importStatus === 'importing' && (
+                  <div className="text-center py-8">
+                    <Loader2 size={48} className="animate-spin text-[#FF851B] mx-auto mb-4" />
+                    <h4 className="text-lg font-bold text-[#001F3F] mb-4">Import en cours...</h4>
+                    <div className="w-full max-w-md mx-auto bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <motion.div
+                        className="bg-[#FF851B] h-full rounded-full"
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${importProgress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                    <p className="text-gray-500 text-sm mt-2">{importProgress}% — {Math.round(importData.length * importProgress / 100)} / {importData.length} lignes</p>
+                  </div>
+                )}
+
+                {/* Preview State */}
+                {importStatus === 'preview' && (
+                  <>
+                    {/* Column Mapping */}
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">Correspondance des colonnes</h4>
+                      <p className="text-xs text-gray-400 mb-4">Vérifiez et ajustez la correspondance automatique entre les colonnes de votre fichier et les champs de ChantierPro.</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {Object.entries(FIELD_LABELS).map(([field, label]) => (
+                          <div key={field} className="space-y-1">
+                            <label className="block text-xs font-bold text-gray-700">{label}</label>
+                            <select
+                              value={columnMapping[field] || ''}
+                              onChange={(e) => setColumnMapping(prev => ({ ...prev, [field]: e.target.value }))}
+                              className={cn(
+                                "w-full px-3 py-2 rounded-lg border text-sm focus:ring-2 focus:ring-[#FF851B] outline-none transition-all",
+                                columnMapping[field]
+                                  ? "border-green-300 bg-green-50 text-green-800"
+                                  : "border-gray-200 bg-white text-gray-500"
+                              )}
+                            >
+                              <option value="">— Ignorer —</option>
+                              {importHeaders.map(h => (
+                                <option key={h} value={h}>{h}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                      {!columnMapping.element && (
+                        <div className="mt-3 flex items-center gap-2 text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm">
+                          <AlertCircle size={16} />
+                          <span>Aucune colonne «Élément / Tâche» détectée. Sélectionnez-la manuellement pour que l'import fonctionne.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Data Preview */}
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-3">
+                        Aperçu des données ({importData.length} lignes)
+                      </h4>
+                      <div className="overflow-x-auto rounded-xl border border-gray-200">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="px-3 py-2 text-left text-xs font-bold text-gray-400 uppercase">#</th>
                               {importHeaders.slice(0, 8).map(h => (
-                                <td key={h} className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[200px] truncate">
-                                  {row[h] instanceof Date ? format(row[h], 'dd/MM/yyyy') : (row[h]?.toString() || '—')}
-                                </td>
+                                <th key={h} className="px-3 py-2 text-left text-xs font-bold text-gray-400 uppercase whitespace-nowrap">
+                                  {h}
+                                  {Object.entries(columnMapping).find(([, v]) => v === h) && (
+                                    <span className="ml-1 text-green-500">✓</span>
+                                  )}
+                                </th>
                               ))}
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {importData.slice(0, 5).map((row, i) => (
+                              <tr key={i} className="hover:bg-gray-50/50">
+                                <td className="px-3 py-2 text-gray-400 font-mono text-xs">{i + 1}</td>
+                                {importHeaders.slice(0, 8).map(h => (
+                                  <td key={h} className="px-3 py-2 text-gray-700 whitespace-nowrap max-w-[200px] truncate">
+                                    {row[h] instanceof Date ? format(row[h], 'dd/MM/yyyy') : (row[h]?.toString() || '—')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {importData.length > 5 && (
+                        <p className="text-xs text-gray-400 mt-2 text-center">... et {importData.length - 5} lignes supplémentaires</p>
+                      )}
                     </div>
-                    {importData.length > 5 && (
-                      <p className="text-xs text-gray-400 mt-2 text-center">... et {importData.length - 5} lignes supplémentaires</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Footer Actions for Preview */}
-            {importStatus === 'preview' && (
-              <div className="border-t border-gray-100 p-4 flex justify-between items-center shrink-0 bg-gray-50/50">
-                <button onClick={closeImportModal} className="px-6 py-3 rounded-xl font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 transition-colors">
-                  Annuler
-                </button>
-                <button 
-                  onClick={handleConfirmImport}
-                  disabled={!columnMapping.element}
-                  className={cn(
-                    "px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center gap-2",
-                    columnMapping.element 
-                      ? "bg-[#FF851B] hover:bg-[#E76A00]" 
-                      : "bg-gray-300 cursor-not-allowed"
-                  )}
-                >
-                  <Upload size={18} />
-                  Importer {importData.length} lignes
-                </button>
+                  </>
+                )}
               </div>
-            )}
-          </motion.div>
-        </div>
-      )}
+
+              {/* Footer Actions for Preview */}
+              {importStatus === 'preview' && (
+                <div className="border-t border-gray-100 p-4 flex justify-between items-center shrink-0 bg-gray-50/50">
+                  <button onClick={closeImportModal} className="px-6 py-3 rounded-xl font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-100 transition-colors">
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleConfirmImport}
+                    disabled={!columnMapping.element}
+                    className={cn(
+                      "px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center gap-2",
+                      columnMapping.element
+                        ? "bg-[#FF851B] hover:bg-[#E76A00]"
+                        : "bg-gray-300 cursor-not-allowed"
+                    )}
+                  >
+                    <Upload size={18} />
+                    Importer {importData.length} lignes
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Modal Confirmation Suppression */}
       {isDeleteConfirmOpen && selectedTask && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
@@ -1075,9 +1120,9 @@ export default function Planning() {
               </div>
               <h3 className="text-xl font-bold text-[#001F3F] mb-2">Supprimer cette tâche ?</h3>
               <p className="text-gray-500 mb-6">Cette action est irréversible. Voulez-vous vraiment supprimer <strong>{selectedTask.element}</strong> ?</p>
-              
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => {
                     // Open edit modal instead
                     setFormData({
@@ -1096,14 +1141,14 @@ export default function Planning() {
                 >
                   Modifier
                 </button>
-                <button 
+                <button
                   onClick={() => handleDelete(selectedTask.id)}
                   className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg transition-all active:scale-95"
                 >
                   Supprimer
                 </button>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   setIsDeleteConfirmOpen(false);
                   setSelectedTask(null);
@@ -1120,7 +1165,7 @@ export default function Planning() {
       {/* Modal Confirmation Suppression Groupée */}
       {isBulkDeleteConfirmOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
@@ -1131,15 +1176,15 @@ export default function Planning() {
               </div>
               <h3 className="text-xl font-bold text-[#001F3F] mb-2">Supprimer les tâches sélectionnées ?</h3>
               <p className="text-gray-500 mb-6">Voulez-vous vraiment supprimer les <strong>{selectedIds.length}</strong> tâches sélectionnées ? Cette action est irréversible.</p>
-              
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setIsBulkDeleteConfirmOpen(false)}
                   className="flex-1 px-6 py-3 rounded-xl font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
                 >
                   Annuler
                 </button>
-                <button 
+                <button
                   onClick={handleBulkDelete}
                   className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-lg transition-all active:scale-95"
                 >

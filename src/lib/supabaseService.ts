@@ -193,6 +193,15 @@ export const deleteFloor = async (id: number) => {
   if (error) console.error('deleteFloor error:', error);
 };
 
+export const updateFloor = async (id: number, payload: { name: string; order_number: number; surface_totale_dalle?: number }) => {
+  const { error } = await supabase.from('floors').update({
+    name: payload.name,
+    order_number: payload.order_number,
+    surface_totale_dalle: payload.surface_totale_dalle ?? null,
+  }).eq('id', id);
+  if (error) console.error('updateFloor error:', error);
+};
+
 // ─── TEAMS ────────────────────────────────────────────────
 export const fetchTeams = async () => {
   const uid = await getActiveProjectOwnerId();
